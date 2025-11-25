@@ -19,9 +19,7 @@
 			}
 		],
 		"paths": {
-			"@/*": ["./*"],
-			"ultra-fileio/*": ["../../src/*"],
-			"ultra-fileio": ["../../src/index.ts"]
+			"@/*": ["./*"]
 		}
 	},
 	"include": [

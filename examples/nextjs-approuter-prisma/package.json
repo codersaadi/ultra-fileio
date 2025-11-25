@@ -32,6 +32,7 @@
 		"react": "19.2.0",
 		"react-dom": "19.2.0",
 		"tailwind-merge": "^3.4.0",
+		"ultra-fileio": "^0.1.0",
 		"zod": "^3.23.8"
 	},
 	"devDependencies": {
