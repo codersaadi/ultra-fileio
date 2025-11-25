@@ -5,12 +5,11 @@
 
 // React hooks
 export {
-  useFileUpload,
-  usePresignedUpload,
-  type UseFileUploadOptions,
-  type UseFileUploadReturn,
-  type UsePresignedUploadOptions,
-  type UploadProgress,
-  type UploadedFile,
-} from './useFileUpload';
-
+	useFileUpload,
+	usePresignedUpload,
+	type UseFileUploadOptions,
+	type UseFileUploadReturn,
+	type UsePresignedUploadOptions,
+	type UploadProgress,
+	type UploadedFile,
+} from "./useFileUpload";

@@ -39,7 +39,7 @@ cd docs
 3. Add the upstream repository:
 
 ```bash
-git remote add upstream https://github.com/your-org/docs.git
+git remote add upstream https://github.com/codersaadi/ultra-fileio.git
 ```
 
 4. Install dependencies:

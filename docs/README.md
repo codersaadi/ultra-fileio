@@ -25,7 +25,7 @@ Use this repository as a template for your own documentation:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/docs.git
+git clone https://github.com/codersaadi/ultra-fileio.git
 cd docs
 
 # Install dependencies
@@ -40,7 +40,7 @@ pnpm dev
 If this is published as a package:
 
 ```bash
-pnpm add @your-org/docs
+pnpm add ultra-fileio
 ```
 
 ## Getting Started
@@ -274,5 +274,5 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 
 ## Support
 
-- [Issues](https://github.com/your-org/docs/issues)
-- [Discussions](https://github.com/your-org/docs/discussions)
+- [Issues](https://github.com/codersaadi/ultra-fileio/issues)
+- [Discussions](https://github.com/codersaadi/ultra-fileio/discussions)

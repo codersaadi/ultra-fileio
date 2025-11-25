@@ -1,6 +1,6 @@
-import { FlexibleFileService } from '../file.service';
-import { StorageError } from '../file.module';
-import { parseFileFromRequest } from '../file.module';
+import { StorageError } from "../file.module";
+import { parseFileFromRequest } from "../file.module";
+import type { FlexibleFileService } from "../file.service";
 
 // ============================================================================
 // NEXT.JS APP ROUTER ROUTE HANDLER
@@ -10,9 +10,9 @@ import { parseFileFromRequest } from '../file.module';
  * Configuration interface for route handler
  */
 export interface RouteHandlerConfig {
-  fileService: FlexibleFileService;
-  getUserId: (req: Request) => Promise<string | null> | string | null;
-  onError?: (error: Error, req: Request) => void;
+	fileService: FlexibleFileService;
+	getUserId: (req: Request) => Promise<string | null> | string | null;
+	onError?: (error: Error, req: Request) => void;
 }
 
 /**
@@ -37,73 +37,62 @@ export interface RouteHandlerConfig {
  * ```
  */
 export function createFileUploadRouteHandler(config: RouteHandlerConfig) {
-  const POST = async (req: Request) => {
-    try {
-      // Authenticate user
-      const userId = await config.getUserId(req);
-      if (!userId) {
-        return Response.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+	const POST = async (req: Request) => {
+		try {
+			// Authenticate user
+			const userId = await config.getUserId(req);
+			if (!userId) {
+				return Response.json({ error: "Unauthorized" }, { status: 401 });
+			}
 
-      // Parse files from request
-      const files = await parseFileFromRequest(req as unknown as Request);
+			// Parse files from request
+			const files = await parseFileFromRequest(req as unknown as Request);
 
-      if (files.length === 0) {
-        return Response.json(
-          { error: 'No files provided' },
-          { status: 400 }
-        );
-      }
+			if (files.length === 0) {
+				return Response.json({ error: "No files provided" }, { status: 400 });
+			}
 
-      // Get category from query params
-      const { searchParams } = new URL(req.url);
-      const category = searchParams.get('category') || 'general';
+			// Get category from query params
+			const { searchParams } = new URL(req.url);
+			const category = searchParams.get("category") || "general";
 
-      // Upload file
-      const file = files[0];
-      if (!file) {
-        return Response.json(
-          { error: 'No file provided' },
-          { status: 400 }
-        );
-      }
-      const result = await config.fileService.uploadFile(userId, {
-        file,
-        category,
-      });
+			// Upload file
+			const file = files[0];
+			if (!file) {
+				return Response.json({ error: "No file provided" }, { status: 400 });
+			}
+			const result = await config.fileService.uploadFile(userId, {
+				file,
+				category,
+			});
 
-      return Response.json({
-        success: true,
-        file: result,
-      });
-    } catch (error) {
-      // Handle custom errors
-      if (error instanceof StorageError) {
-        config.onError?.(error, req);
-        return Response.json(
-          {
-            error: error.message,
-            code: error.code,
-            metadata: error.metadata,
-          },
-          { status: error.statusCode }
-        );
-      }
+			return Response.json({
+				success: true,
+				file: result,
+			});
+		} catch (error) {
+			// Handle custom errors
+			if (error instanceof StorageError) {
+				config.onError?.(error, req);
+				return Response.json(
+					{
+						error: error.message,
+						code: error.code,
+						metadata: error.metadata,
+					},
+					{ status: error.statusCode },
+				);
+			}
 
-      // Handle unknown errors
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      config.onError?.(error as Error, req);
-      return Response.json(
-        { error: errorMessage },
-        { status: 500 }
-      );
-    }
-  };
+			// Handle unknown errors
+			const errorMessage =
+				error instanceof Error ? error.message : "Upload failed";
+			config.onError?.(error as Error, req);
+			return Response.json({ error: errorMessage }, { status: 500 });
+		}
+	};
 
-  return { POST };
+	return { POST };
 }
 
 /**
@@ -128,56 +117,53 @@ export function createFileUploadRouteHandler(config: RouteHandlerConfig) {
  * ```
  */
 export function createPresignedUrlRouteHandler(config: RouteHandlerConfig) {
-  const POST = async (req: Request) => {
-    try {
-      const userId = await config.getUserId(req);
-      if (!userId) {
-        return Response.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+	const POST = async (req: Request) => {
+		try {
+			const userId = await config.getUserId(req);
+			if (!userId) {
+				return Response.json({ error: "Unauthorized" }, { status: 401 });
+			}
 
-      const body = await req.json();
-      const { filename, contentType, category } = body;
+			const body = await req.json();
+			const { filename, contentType, category } = body;
 
-      if (!filename || !contentType) {
-        return Response.json(
-          { error: 'Filename and contentType are required' },
-          { status: 400 }
-        );
-      }
+			if (!filename || !contentType) {
+				return Response.json(
+					{ error: "Filename and contentType are required" },
+					{ status: 400 },
+				);
+			}
 
-      const result = await config.fileService.generateUploadUrl(
-        userId,
-        filename,
-        contentType,
-        category
-      );
+			const result = await config.fileService.generateUploadUrl(
+				userId,
+				filename,
+				contentType,
+				category,
+			);
 
-      return Response.json(result);
-    } catch (error) {
-      if (error instanceof StorageError) {
-        config.onError?.(error, req);
-        return Response.json(
-          {
-            error: error.message,
-            code: error.code,
-          },
-          { status: error.statusCode }
-        );
-      }
+			return Response.json(result);
+		} catch (error) {
+			if (error instanceof StorageError) {
+				config.onError?.(error, req);
+				return Response.json(
+					{
+						error: error.message,
+						code: error.code,
+					},
+					{ status: error.statusCode },
+				);
+			}
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate upload URL';
-      config.onError?.(error as Error, req);
-      return Response.json(
-        { error: errorMessage },
-        { status: 500 }
-      );
-    }
-  };
+			const errorMessage =
+				error instanceof Error
+					? error.message
+					: "Failed to generate upload URL";
+			config.onError?.(error as Error, req);
+			return Response.json({ error: errorMessage }, { status: 500 });
+		}
+	};
 
-  return { POST };
+	return { POST };
 }
 
 /**
@@ -202,59 +188,57 @@ export function createPresignedUrlRouteHandler(config: RouteHandlerConfig) {
  * ```
  */
 export function createSaveFileRecordRouteHandler(config: RouteHandlerConfig) {
-  const POST = async (req: Request) => {
-    try {
-      const userId = await config.getUserId(req);
-      if (!userId) {
-        return Response.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+	const POST = async (req: Request) => {
+		try {
+			const userId = await config.getUserId(req);
+			if (!userId) {
+				return Response.json({ error: "Unauthorized" }, { status: 401 });
+			}
 
-      const body = await req.json();
-      const { r2Key, originalFilename, fileSize, publicUrl } = body;
+			const body = await req.json();
+			const { r2Key, originalFilename, fileSize, publicUrl } = body;
 
-      if (!r2Key || !originalFilename || !fileSize || !publicUrl) {
-        return Response.json(
-          { error: 'Missing required fields: r2Key, originalFilename, fileSize, publicUrl' },
-          { status: 400 }
-        );
-      }
+			if (!r2Key || !originalFilename || !fileSize || !publicUrl) {
+				return Response.json(
+					{
+						error:
+							"Missing required fields: r2Key, originalFilename, fileSize, publicUrl",
+					},
+					{ status: 400 },
+				);
+			}
 
-      const fileRecord = await config.fileService.saveFileRecord(userId, {
-        r2Key,
-        originalFilename,
-        fileSize,
-        publicUrl,
-      });
+			const fileRecord = await config.fileService.saveFileRecord(userId, {
+				r2Key,
+				originalFilename,
+				fileSize,
+				publicUrl,
+			});
 
-      return Response.json({
-        success: true,
-        file: fileRecord,
-      });
-    } catch (error) {
-      if (error instanceof StorageError) {
-        config.onError?.(error, req);
-        return Response.json(
-          {
-            error: error.message,
-            code: error.code,
-          },
-          { status: error.statusCode }
-        );
-      }
+			return Response.json({
+				success: true,
+				file: fileRecord,
+			});
+		} catch (error) {
+			if (error instanceof StorageError) {
+				config.onError?.(error, req);
+				return Response.json(
+					{
+						error: error.message,
+						code: error.code,
+					},
+					{ status: error.statusCode },
+				);
+			}
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save file record';
-      config.onError?.(error as Error, req);
-      return Response.json(
-        { error: errorMessage },
-        { status: 500 }
-      );
-    }
-  };
+			const errorMessage =
+				error instanceof Error ? error.message : "Failed to save file record";
+			config.onError?.(error as Error, req);
+			return Response.json({ error: errorMessage }, { status: 500 });
+		}
+	};
 
-  return { POST };
+	return { POST };
 }
 
 /**
@@ -279,56 +263,48 @@ export function createSaveFileRecordRouteHandler(config: RouteHandlerConfig) {
  * ```
  */
 export function createFileDeleteRouteHandler(config: RouteHandlerConfig) {
-  const DELETE = async (
-    req: Request,
-    { params }: { params: { id: string } }
-  ) => {
-    try {
-      const userId = await config.getUserId(req);
-      if (!userId) {
-        return Response.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+	const DELETE = async (
+		req: Request,
+		{ params }: { params: { id: string } },
+	) => {
+		try {
+			const userId = await config.getUserId(req);
+			if (!userId) {
+				return Response.json({ error: "Unauthorized" }, { status: 401 });
+			}
 
-      const fileId = params.id;
-      if (!fileId) {
-        return Response.json(
-          { error: 'File ID is required' },
-          { status: 400 }
-        );
-      }
+			const fileId = params.id;
+			if (!fileId) {
+				return Response.json({ error: "File ID is required" }, { status: 400 });
+			}
 
-      const result = await config.fileService.deleteFile(fileId, userId);
+			const result = await config.fileService.deleteFile(fileId, userId);
 
-      return Response.json({
-        success: true,
-        file: result.file,
-        r2Deleted: result.r2Deleted,
-      });
-    } catch (error) {
-      if (error instanceof StorageError) {
-        config.onError?.(error, req);
-        return Response.json(
-          {
-            error: error.message,
-            code: error.code,
-          },
-          { status: error.statusCode }
-        );
-      }
+			return Response.json({
+				success: true,
+				file: result.file,
+				r2Deleted: result.r2Deleted,
+			});
+		} catch (error) {
+			if (error instanceof StorageError) {
+				config.onError?.(error, req);
+				return Response.json(
+					{
+						error: error.message,
+						code: error.code,
+					},
+					{ status: error.statusCode },
+				);
+			}
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete file';
-      config.onError?.(error as Error, req);
-      return Response.json(
-        { error: errorMessage },
-        { status: 500 }
-      );
-    }
-  };
+			const errorMessage =
+				error instanceof Error ? error.message : "Failed to delete file";
+			config.onError?.(error as Error, req);
+			return Response.json({ error: errorMessage }, { status: 500 });
+		}
+	};
 
-  return { DELETE };
+	return { DELETE };
 }
 
 /**
@@ -351,57 +327,43 @@ export function createFileDeleteRouteHandler(config: RouteHandlerConfig) {
  * ```
  */
 export function createFileGetRouteHandler(config: RouteHandlerConfig) {
-  const GET = async (
-    req: Request,
-    { params }: { params: { id: string } }
-  ) => {
-    try {
-      const userId = await config.getUserId(req);
-      if (!userId) {
-        return Response.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        );
-      }
+	const GET = async (req: Request, { params }: { params: { id: string } }) => {
+		try {
+			const userId = await config.getUserId(req);
+			if (!userId) {
+				return Response.json({ error: "Unauthorized" }, { status: 401 });
+			}
 
-      const fileId = params.id;
-      if (!fileId) {
-        return Response.json(
-          { error: 'File ID is required' },
-          { status: 400 }
-        );
-      }
+			const fileId = params.id;
+			if (!fileId) {
+				return Response.json({ error: "File ID is required" }, { status: 400 });
+			}
 
-      const file = await config.fileService.getFile(fileId);
+			const file = await config.fileService.getFile(fileId);
 
-      if (!file) {
-        return Response.json(
-          { error: 'File not found' },
-          { status: 404 }
-        );
-      }
+			if (!file) {
+				return Response.json({ error: "File not found" }, { status: 404 });
+			}
 
-      return Response.json({ file });
-    } catch (error) {
-      if (error instanceof StorageError) {
-        config.onError?.(error, req);
-        return Response.json(
-          {
-            error: error.message,
-            code: error.code,
-          },
-          { status: error.statusCode }
-        );
-      }
+			return Response.json({ file });
+		} catch (error) {
+			if (error instanceof StorageError) {
+				config.onError?.(error, req);
+				return Response.json(
+					{
+						error: error.message,
+						code: error.code,
+					},
+					{ status: error.statusCode },
+				);
+			}
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to get file';
-      config.onError?.(error as Error, req);
-      return Response.json(
-        { error: errorMessage },
-        { status: 500 }
-      );
-    }
-  };
+			const errorMessage =
+				error instanceof Error ? error.message : "Failed to get file";
+			config.onError?.(error as Error, req);
+			return Response.json({ error: errorMessage }, { status: 500 });
+		}
+	};
 
-  return { GET };
+	return { GET };
 }

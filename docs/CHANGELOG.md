@@ -102,5 +102,5 @@ This is the initial stable release. If you were using a pre-release version:
 
 ## Version History
 
-[Unreleased]: https://github.com/your-org/docs/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/your-org/docs/releases/tag/v1.0.0
+[Unreleased]: https://github.com/codersaadi/ultra-fileio/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/codersaadi/ultra-fileio/releases/tag/v1.0.0

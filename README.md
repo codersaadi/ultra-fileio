@@ -258,8 +258,8 @@ MIT License - see [LICENSE](./LICENSE) file for details.
 ## 📞 Support
 
 - 📖 [Documentation](./docs/)
-- 💬 [GitHub Discussions](https://github.com/your-org/ultra-fileio/discussions)
-- 🐛 [Issue Tracker](https://github.com/your-org/ultra-fileio/issues)
+- 💬 [GitHub Discussions](https://github.com/codersaadi/ultra-fileio/discussions)
+- 🐛 [Issue Tracker](https://github.com/codersaadi/ultra-fileio/issues)
 
 ---
 

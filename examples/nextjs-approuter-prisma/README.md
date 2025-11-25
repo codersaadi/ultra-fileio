@@ -4,7 +4,7 @@ A complete file management system built with Next.js App Router, **meta-uploads 
 
 ## 🎯 What's New - Meta-Uploads Integration
 
-This example showcases the **meta-uploads** library from `/home/syed/meta-uploads/src`, providing:
+This example showcases the **meta-uploads** library from `ultra-fileio`, providing:
 
 - ✅ **Cloudflare R2 / S3 Storage** - Cloud storage instead of local filesystem
 - ✅ **ORM-Agnostic Design** - Works with Prisma, Drizzle, or any ORM via repository pattern
