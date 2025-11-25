@@ -1,0 +1,200 @@
+---
+title: Installation
+description: How to install and set up Ultra FileIO in your Next.js project
+---
+
+# Installation
+
+Ultra FileIO is an npm package that you can install in any Next.js project.
+
+## Prerequisites
+
+- **Node.js** 18+ or **Bun**
+- **Next.js** 14+ with App Router
+- **TypeScript** (recommended)
+- **Prisma** or **Drizzle** ORM
+
+## Install Package
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```bash
+    npm install ultra-fileio
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```bash
+    pnpm add ultra-fileio
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```bash
+    yarn add ultra-fileio
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add ultra-fileio
+    ```
+  </Tab>
+</Tabs>
+
+## Install Required Dependencies
+
+Ultra FileIO requires these peer dependencies:
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```bash
+    npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner sharp zod
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```bash
+    pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner sharp zod
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```bash
+    yarn add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner sharp zod
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner sharp zod
+    ```
+  </Tab>
+</Tabs>
+
+### Dependency Details
+
+| Package | Purpose | Required |
+|---------|---------|----------|
+| `@aws-sdk/client-s3` | S3/R2 storage operations | ✅ Yes |
+| `@aws-sdk/s3-request-presigner` | Generate presigned URLs | ✅ Yes |
+| `sharp` | Image optimization | ✅ Yes |
+| `zod` | Runtime validation | ✅ Yes |
+| `react` | React components (client) | Only if using client components |
+| `react-dom` | React DOM (client) | Only if using client components |
+
+## Environment Variables
+
+Create a `.env` or `.env.local` file in your project root:
+
+```bash title=".env.local"
+# Cloudflare R2 Configuration
+S3_ACCOUNT_ID="your-account-id"
+S3_ACCESS_KEY_ID="your-access-key-id"
+S3_SECRET_ACCESS_KEY="your-secret-access-key"
+S3_BUCKET_NAME="your-bucket-name"
+S3_PUBLIC_URL="https://your-bucket.r2.dev"
+S3_REGION="auto"
+
+# Database (example with PostgreSQL)
+DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
+```
+
+### Getting R2 Credentials
+
+<Steps>
+
+### Create Cloudflare Account
+
+Sign up at [cloudflare.com](https://cloudflare.com) if you haven't already.
+
+### Create R2 Bucket
+
+1. Go to R2 dashboard
+2. Click "Create bucket"
+3. Name your bucket (e.g., `my-app-files`)
+4. Copy the bucket name to `S3_BUCKET_NAME`
+
+### Generate API Token
+
+1. Go to R2 → Settings → Manage R2 API Tokens
+2. Create API token with "Edit" permissions
+3. Copy the credentials:
+   - Account ID → `S3_ACCOUNT_ID`
+   - Access Key ID → `S3_ACCESS_KEY_ID`
+   - Secret Access Key → `S3_SECRET_ACCESS_KEY`
+
+### Configure Public Access (Optional)
+
+To serve files publicly:
+1. Go to your bucket → Settings
+2. Enable "Public access"
+3. Set custom domain or use R2.dev subdomain
+4. Add URL to `S3_PUBLIC_URL`
+
+</Steps>
+
+<Callout type="info">
+  **AWS S3 Users**: Ultra FileIO works with AWS S3 too! Just set `S3_REGION` to your AWS region (e.g., `us-east-1`) instead of `"auto"`.
+</Callout>
+
+## Verify Installation
+
+Create a test file to verify the installation:
+
+```typescript title="lib/test.ts"
+import { FlexibleFileService } from 'ultra-fileio';
+
+console.log('Ultra FileIO installed successfully!');
+```
+
+Run the file:
+
+```bash
+npx tsx lib/test.ts
+```
+
+If you see the success message, you're ready to proceed!
+
+## Next Steps
+
+<Cards>
+  <Card title="Configuration" href="/docs/configuration">
+    Configure your file service and storage settings
+  </Card>
+  <Card title="Prisma Setup" href="/docs/prisma">
+    Set up database with Prisma ORM
+  </Card>
+  <Card title="Drizzle Setup" href="/docs/drizzle">
+    Set up database with Drizzle ORM
+  </Card>
+  <Card title="Next.js Routes" href="/docs/nextjs">
+    Create API routes for file uploads
+  </Card>
+</Cards>
+
+## Troubleshooting
+
+### Sharp Installation Issues
+
+If you encounter Sharp installation errors:
+
+```bash
+npm install --platform=linux --arch=x64 sharp
+```
+
+### Module Resolution Errors
+
+Ensure your `tsconfig.json` has proper module resolution:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "target": "ES2022"
+  }
+}
+```
+
+### TypeScript Errors
+
+If you get TypeScript errors, make sure you have the latest types:
+
+```bash
+npm install -D @types/node@latest
+```

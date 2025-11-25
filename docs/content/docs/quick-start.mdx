@@ -1,0 +1,375 @@
+---
+title: Quick Start
+description: Get Ultra FileIO up and running in 5 minutes
+---
+
+# Quick Start
+
+Get Ultra FileIO up and running in your Next.js project in just 5 minutes.
+
+## Installation
+
+<Steps>
+
+### Install the package
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```bash
+    npm install ultra-fileio
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```bash
+    pnpm add ultra-fileio
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```bash
+    yarn add ultra-fileio
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add ultra-fileio
+    ```
+  </Tab>
+</Tabs>
+
+### Install dependencies
+
+```bash npm2yarn
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner sharp zod prisma @prisma/client
+```
+
+### Set up environment variables
+
+Create `.env.local` with your R2/S3 credentials:
+
+```bash title=".env.local"
+# Cloudflare R2
+S3_ACCOUNT_ID="your-account-id"
+S3_ACCESS_KEY_ID="your-access-key"
+S3_SECRET_ACCESS_KEY="your-secret-key"
+S3_BUCKET_NAME="your-bucket-name"
+S3_PUBLIC_URL="https://your-bucket.r2.dev"
+S3_REGION="auto"
+
+# Database
+DATABASE_URL="file:./dev.db"
+```
+
+<Callout type="info">
+  Don't have R2 credentials? [Get started with Cloudflare R2](https://dash.cloudflare.com/sign-up/r2) - it's free with 10GB storage.
+</Callout>
+
+### Add Prisma schema
+
+Create or update `prisma/schema.prisma`:
+
+```prisma title="prisma/schema.prisma"
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"  // or "postgresql", "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  files     File[]
+}
+
+model File {
+  id               String   @id @default(cuid())
+  r2Key            String   @unique @map("r2_key")
+  originalFilename String   @map("original_filename")
+  fileSize         Int      @map("file_size")
+  publicUrl        String   @map("public_url")
+  uploadedBy       String   @map("uploaded_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  uploader User @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([r2Key])
+  @@index([uploadedBy])
+  @@index([createdAt])
+  @@map("files")
+}
+```
+
+### Run migrations
+
+```bash
+npx prisma migrate dev --name init
+npx prisma generate
+```
+
+### Create Prisma client
+
+```typescript title="lib/prisma.ts"
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+```
+
+### Create user helper
+
+```typescript title="lib/get-user.ts"
+// In real app, use your auth provider's session to get user id
+export function getUserId(req: Request) {
+  return req.headers.get('x-user-id') || 'demo-user'
+}
+
+/**
+ * Example with NextAuth:
+ * const session = await getSession();
+ * return session?.user?.id || null;
+ */
+```
+
+### Create API route
+
+Create the catch-all file upload route:
+
+```typescript title="app/api/fileuploads/[[...fileuploads]]/route.ts"
+import { FlexibleFileService, PrismaFileRepository, isR2Configured } from 'ultra-fileio'
+import { fileUploadsHandler } from 'ultra-fileio/server'
+import { getUserId } from '@/lib/get-user'
+import { prisma } from '@/lib/prisma'
+
+// Create repository
+const fileRepository = new PrismaFileRepository(prisma)
+
+// Create file service (only if R2 is configured)
+let fileService: FlexibleFileService | null = null
+if (isR2Configured) {
+  fileService = new FlexibleFileService(fileRepository)
+}
+
+// Export all HTTP method handlers
+export const { GET, POST, PUT, PATCH, DELETE } = fileUploadsHandler({
+  fileService,
+  fileRepository,
+  getUserId,
+  basePath: '/api/fileuploads',
+})
+```
+
+</Steps>
+
+## That's it! 🎉
+
+You now have a fully functional file upload system with:
+
+✅ Upload files to R2/S3
+✅ Store metadata in database
+✅ Get file lists
+✅ Delete files
+✅ Image optimization
+
+## Test Your Setup
+
+### Create a test component
+
+```typescript title="app/page.tsx"
+'use client'
+
+import { useState } from 'react'
+
+export default function HomePage() {
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleUpload() {
+    if (!file) return
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/fileuploads', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) throw new Error('Upload failed')
+
+      const data = await res.json()
+      alert('Upload successful! File ID: ' + data.id)
+    } catch (error) {
+      alert('Upload failed: ' + error.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">File Upload Test</h1>
+
+      <input
+        type="file"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        accept="image/*"
+        className="mb-4"
+      />
+
+      <button
+        onClick={handleUpload}
+        disabled={!file || uploading}
+        className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+      >
+        {uploading ? 'Uploading...' : 'Upload'}
+      </button>
+    </div>
+  )
+}
+```
+
+### Run your app
+
+```bash
+npm run dev
+```
+
+Visit [http://localhost:3000](http://localhost:3000) and test the upload!
+
+## API Endpoints
+
+The catch-all route `[[...fileuploads]]` creates these endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/fileuploads` | Upload a file |
+| `GET` | `/api/fileuploads` | List all user files |
+| `GET` | `/api/fileuploads/{id}` | Get file details |
+| `DELETE` | `/api/fileuploads/{id}` | Delete a file |
+| `POST` | `/api/fileuploads/presigned` | Get presigned URL |
+| `POST` | `/api/fileuploads/complete` | Complete presigned upload |
+
+## Usage Examples
+
+### Upload a file
+
+```typescript
+const formData = new FormData()
+formData.append('file', file)
+
+const res = await fetch('/api/fileuploads', {
+  method: 'POST',
+  body: formData,
+})
+
+const data = await res.json()
+console.log(data.id, data.publicUrl)
+```
+
+### Get user's files
+
+```typescript
+const res = await fetch('/api/fileuploads')
+const files = await res.json()
+
+console.log(files) // Array of file objects
+```
+
+### Delete a file
+
+```typescript
+await fetch(`/api/fileuploads/${fileId}`, {
+  method: 'DELETE',
+})
+```
+
+### Presigned upload (for large files)
+
+```typescript
+// 1. Get presigned URL
+const res = await fetch('/api/fileuploads/presigned', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    filename: file.name,
+    contentType: file.type,
+  }),
+})
+
+const { uploadUrl, key, publicUrl } = await res.json()
+
+// 2. Upload directly to R2/S3
+await fetch(uploadUrl, {
+  method: 'PUT',
+  body: file,
+  headers: { 'Content-Type': file.type },
+})
+
+// 3. Mark upload as complete
+await fetch('/api/fileuploads/complete', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    r2Key: key,
+    originalFilename: file.name,
+    fileSize: file.size,
+    publicUrl,
+  }),
+})
+```
+
+## What's Next?
+
+<Cards>
+  <Card title="Authentication" href="/docs/authentication">
+    Add real authentication with NextAuth, Clerk, or Auth.js
+  </Card>
+  <Card title="Configuration" href="/docs/configuration">
+    Customize file size limits, image optimization, and more
+  </Card>
+  <Card title="Drizzle Setup" href="/docs/drizzle">
+    Use Drizzle ORM instead of Prisma
+  </Card>
+  <Card title="Client Components" href="/docs/client-components">
+    Use pre-built React components for file upload
+  </Card>
+</Cards>
+
+## Troubleshooting
+
+### "R2 not configured" error
+
+Make sure all environment variables are set:
+- `S3_ACCOUNT_ID`
+- `S3_ACCESS_KEY_ID`
+- `S3_SECRET_ACCESS_KEY`
+- `S3_BUCKET_NAME`
+
+### Database connection error
+
+Check your `DATABASE_URL` in `.env.local` and run migrations:
+
+```bash
+npx prisma migrate dev
+```
+
+### Upload fails silently
+
+Check the server console for errors. Common issues:
+- File size exceeds limit (default 10MB)
+- Invalid file type (only images by default)
+- R2 bucket permissions
+
+Need more help? Check out the [full documentation](/docs) or [examples](/docs/examples).

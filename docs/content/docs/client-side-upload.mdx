@@ -1,0 +1,97 @@
+---
+title: Client-Side Upload
+description: Learn how to implement secure file uploads using our React hooks and components.
+---
+
+We recommend using the `usePresignedUpload` hook for secure, scalable file uploads. This approach generates a presigned URL on your server, allowing the client to upload directly to your storage provider (e.g., S3, R2), and then saves the file record to your database.
+
+## The `usePresignedUpload` Hook
+
+The `usePresignedUpload` hook handles the complex three-step process:
+1.  **Get Presigned URL**: Requests a temporary upload URL from your API.
+2.  **Direct Upload**: Uploads the file directly to storage using the presigned URL.
+3.  **Save Record**: Saves the file metadata to your database.
+
+```tsx
+import { usePresignedUpload } from 'ultra-fileio/client';
+
+const { upload, uploading, progress, error } = usePresignedUpload({
+  category: 'avatars',
+  onSuccess: (file) => console.log('Uploaded:', file),
+});
+```
+
+## Creating a File Upload Component
+
+You can easily create a custom file upload component by combining `usePresignedUpload` with our pre-built `FileDropzone` UI component.
+
+### Dependencies
+
+First, ensure you have the library installed:
+
+```bash
+npm install ultra-fileio
+```
+
+### Component Code
+
+Create a file named `FileUpload.tsx` and copy the following code. This component handles the upload logic and renders the dropzone UI.
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { FileDropzone, usePresignedUpload, type UploadedFile } from 'ultra-fileio/client';
+
+interface FileUploadProps {
+  onUploadSuccess?: (file: UploadedFile) => void;
+}
+
+export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  
+  const { upload, uploading, progress, error } = usePresignedUpload({
+    onSuccess: (file) => {
+      setUploadedFiles((prev) => [...prev, file]);
+      onUploadSuccess?.(file);
+    },
+  });
+
+  const handleFileSelect = async (file: File) => {
+    await upload(file);
+  };
+
+  return (
+    <FileDropzone
+      onFileSelect={handleFileSelect}
+      uploading={uploading}
+      progress={progress}
+      error={error}
+      accept="image/*"
+      maxSize={5 * 1024 * 1024} // 5MB
+      uploadedFiles={uploadedFiles}
+      onFileRemove={(id: string) => setUploadedFiles(files => files.filter(f => f.id !== id))}
+      onUploadSuccess={onUploadSuccess}
+    />
+  );
+}
+```
+
+## Usage
+
+Now you can use the `FileUpload` component in your application:
+
+```tsx
+import FileUpload from './FileUpload';
+
+export default function Page() {
+  return (
+    <div className="p-4">
+      <h2 className="text-lg font-bold mb-4">Upload Image</h2>
+      <FileUpload 
+        onUploadSuccess={(file) => alert(`Uploaded ${file.filename}`)} 
+      />
+    </div>
+  );
+}
+```

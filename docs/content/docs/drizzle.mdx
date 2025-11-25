@@ -1,0 +1,575 @@
+---
+title: Drizzle Setup
+description: Set up Ultra FileIO with Drizzle ORM for database operations
+---
+
+# Drizzle Setup
+
+Learn how to integrate Ultra FileIO with Drizzle ORM as an alternative to Prisma.
+
+## Why Drizzle?
+
+- 🚀 **Lightweight** - Smaller bundle size than Prisma
+- 🎯 **Type-safe** - Full TypeScript inference
+- 💪 **Flexible** - SQL-like API with full control
+- ⚡ **Fast** - No code generation, instant startup
+
+## Installation
+
+Install Drizzle and your database driver:
+
+<Tabs items={['PostgreSQL', 'MySQL', 'SQLite']}>
+  <Tab value="PostgreSQL">
+    ```bash npm2yarn
+    npm install drizzle-orm pg
+    npm install -D drizzle-kit @types/pg
+    ```
+  </Tab>
+  <Tab value="MySQL">
+    ```bash npm2yarn
+    npm install drizzle-orm mysql2
+    npm install -D drizzle-kit
+    ```
+  </Tab>
+  <Tab value="SQLite">
+    ```bash npm2yarn
+    npm install drizzle-orm better-sqlite3
+    npm install -D drizzle-kit @types/better-sqlite3
+    ```
+  </Tab>
+</Tabs>
+
+## Database Schema
+
+### PostgreSQL Schema
+
+```typescript title="lib/db/schema.ts"
+import { pgTable, text, timestamp, uuid, varchar, index, bigint } from 'drizzle-orm/pg-core'
+
+/**
+ * Users table
+ */
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+/**
+ * Files table - compatible with Ultra FileIO
+ */
+export const files = pgTable(
+  'files',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    // R2 Storage Information
+    r2Key: text('r2_key').notNull().unique(),
+
+    // File metadata
+    originalFilename: varchar('original_filename', { length: 512 }).notNull(),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+
+    // Public URL for direct access
+    publicUrl: text('public_url').notNull(),
+
+    // Ownership
+    uploadedBy: uuid('uploaded_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    // Timestamps
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    // Essential indexes for performance
+    r2KeyIdx: index('files_r2_key_idx').on(table.r2Key),
+    uploadedByIdx: index('files_uploaded_by_idx').on(table.uploadedBy),
+    createdAtIdx: index('files_created_at_idx').on(table.createdAt),
+  })
+)
+
+// Type exports
+export type User = typeof users.$inferSelect
+export type UserInsert = typeof users.$inferInsert
+export type File = typeof files.$inferSelect
+export type FileInsert = typeof files.$inferInsert
+```
+
+### MySQL Schema
+
+```typescript title="lib/db/schema.ts"
+import { mysqlTable, text, timestamp, varchar, index, bigint } from 'drizzle-orm/mysql-core'
+
+export const users = mysqlTable('users', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+})
+
+export const files = mysqlTable(
+  'files',
+  {
+    id: varchar('id', { length: 36 }).primaryKey(),
+    r2Key: text('r2_key').notNull(),
+    originalFilename: varchar('original_filename', { length: 512 }).notNull(),
+    fileSize: bigint('file_size', { mode: 'number' }).notNull(),
+    publicUrl: text('public_url').notNull(),
+    uploadedBy: varchar('uploaded_by', { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    r2KeyIdx: index('files_r2_key_idx').on(table.r2Key),
+    uploadedByIdx: index('files_uploaded_by_idx').on(table.uploadedBy),
+    createdAtIdx: index('files_created_at_idx').on(table.createdAt),
+  })
+)
+```
+
+### SQLite Schema
+
+```typescript title="lib/db/schema.ts"
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core'
+
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  name: text('name'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const files = sqliteTable(
+  'files',
+  {
+    id: text('id').primaryKey(),
+    r2Key: text('r2_key').notNull().unique(),
+    originalFilename: text('original_filename').notNull(),
+    fileSize: integer('file_size').notNull(),
+    publicUrl: text('public_url').notNull(),
+    uploadedBy: text('uploaded_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  },
+  (table) => ({
+    r2KeyIdx: index('files_r2_key_idx').on(table.r2Key),
+    uploadedByIdx: index('files_uploaded_by_idx').on(table.uploadedBy),
+    createdAtIdx: index('files_created_at_idx').on(table.createdAt),
+  })
+)
+```
+
+## Drizzle Configuration
+
+Create Drizzle config file:
+
+```typescript title="drizzle.config.ts"
+import { defineConfig } from 'drizzle-kit'
+
+export default defineConfig({
+  schema: './lib/db/schema.ts',
+  out: './drizzle',
+  dialect: 'postgresql', // or 'mysql', 'sqlite'
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+})
+```
+
+## Database Connection
+
+### PostgreSQL
+
+```typescript title="lib/db/index.ts"
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
+import * as schema from './schema'
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+})
+
+export const db = drizzle(pool, { schema })
+```
+
+### MySQL
+
+```typescript title="lib/db/index.ts"
+import { drizzle } from 'drizzle-orm/mysql2'
+import mysql from 'mysql2/promise'
+import * as schema from './schema'
+
+const connection = await mysql.createConnection({
+  uri: process.env.DATABASE_URL,
+})
+
+export const db = drizzle(connection, { schema })
+```
+
+### SQLite
+
+```typescript title="lib/db/index.ts"
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import Database from 'better-sqlite3'
+import * as schema from './schema'
+
+const sqlite = new Database(process.env.DATABASE_URL || 'dev.db')
+
+export const db = drizzle(sqlite, { schema })
+```
+
+## Run Migrations
+
+Generate migration files:
+
+```bash
+npx drizzle-kit generate
+```
+
+Run migrations:
+
+```bash
+npx drizzle-kit migrate
+```
+
+Or push schema directly (dev only):
+
+```bash
+npx drizzle-kit push
+```
+
+## File Service Setup
+
+Create the file service with Drizzle repository:
+
+```typescript title="lib/file-service.ts"
+import { DrizzleFileRepository, FlexibleFileService } from 'ultra-fileio'
+import { eq, desc, count, sql, and, like, gte, lte, inArray } from 'drizzle-orm'
+import { db } from './db'
+import { files, users } from './db/schema'
+
+// Create Drizzle repository
+const fileRepository = new DrizzleFileRepository({
+  db,
+  files,
+  users,
+  drizzleFns: { eq, desc, count, sql, and, like, gte, lte, inArray },
+})
+
+// Create file service
+export const fileService = new FlexibleFileService(fileRepository)
+```
+
+### With Lifecycle Hooks
+
+```typescript title="lib/file-service.ts"
+import { DrizzleFileRepository, FlexibleFileService } from 'ultra-fileio'
+import { eq, desc, count, sql, and, like, gte, lte, inArray } from 'drizzle-orm'
+import { db } from './db'
+import { files, users } from './db/schema'
+
+const fileRepository = new DrizzleFileRepository({
+  db,
+  files,
+  users,
+  drizzleFns: { eq, desc, count, sql, and, like, gte, lte, inArray },
+  hooks: {
+    beforeCreate: async (data) => {
+      console.log('[Upload] Starting:', data.originalFilename)
+    },
+    afterCreate: async (file) => {
+      console.log('[Upload] Complete:', file.id)
+      // Send notifications, update analytics, etc.
+    },
+    beforeDelete: async ({ id }) => {
+      console.log('[Delete] Removing:', id)
+    },
+    afterDelete: async ({ id }) => {
+      console.log('[Delete] Removed:', id)
+    },
+  },
+})
+
+export const fileService = new FlexibleFileService(fileRepository)
+```
+
+## API Route Setup
+
+```typescript title="app/api/fileuploads/[[...fileuploads]]/route.ts"
+import { FlexibleFileService, DrizzleFileRepository, isR2Configured } from 'ultra-fileio'
+import { fileUploadsHandler } from 'ultra-fileio/server'
+import { eq, desc, count, sql, and, like, gte, lte, inArray } from 'drizzle-orm'
+import { getUserId } from '@/lib/get-user'
+import { db } from '@/lib/db'
+import { files, users } from '@/lib/db/schema'
+
+// Create repository
+const fileRepository = new DrizzleFileRepository({
+  db,
+  files,
+  users,
+  drizzleFns: { eq, desc, count, sql, and, like, gte, lte, inArray },
+})
+
+// Create file service
+let fileService: FlexibleFileService | null = null
+if (isR2Configured) {
+  fileService = new FlexibleFileService(fileRepository)
+}
+
+// Export handlers
+export const { GET, POST, PUT, PATCH, DELETE } = fileUploadsHandler({
+  fileService,
+  fileRepository,
+  getUserId,
+  basePath: '/api/fileuploads',
+})
+```
+
+## Drizzle Studio
+
+Launch Drizzle Studio to view and edit data:
+
+```bash
+npx drizzle-kit studio
+```
+
+Opens at [http://localhost:4983](http://localhost:4983)
+
+## Queries with Drizzle
+
+### Get User's Files
+
+```typescript
+import { db } from '@/lib/db'
+import { files } from '@/lib/db/schema'
+import { eq, desc } from 'drizzle-orm'
+
+const userFiles = await db
+  .select()
+  .from(files)
+  .where(eq(files.uploadedBy, userId))
+  .orderBy(desc(files.createdAt))
+```
+
+### Get File with User Info
+
+```typescript
+import { db } from '@/lib/db'
+import { files, users } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+
+const fileWithUser = await db
+  .select({
+    id: files.id,
+    filename: files.originalFilename,
+    url: files.publicUrl,
+    createdAt: files.createdAt,
+    userName: users.name,
+    userEmail: users.email,
+  })
+  .from(files)
+  .leftJoin(users, eq(files.uploadedBy, users.id))
+  .where(eq(files.id, fileId))
+```
+
+### Get File Statistics
+
+```typescript
+import { db } from '@/lib/db'
+import { files } from '@/lib/db/schema'
+import { count, sum, avg, gte } from 'drizzle-orm'
+
+const stats = await db
+  .select({
+    totalFiles: count(),
+    totalSize: sum(files.fileSize),
+    averageSize: avg(files.fileSize),
+  })
+  .from(files)
+
+const recentUploads = await db
+  .select({ count: count() })
+  .from(files)
+  .where(gte(files.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)))
+```
+
+## Bulk Operations
+
+### Bulk Insert
+
+```typescript
+await db.insert(files).values([
+  { r2Key: 'key1', originalFilename: 'file1.jpg', ... },
+  { r2Key: 'key2', originalFilename: 'file2.jpg', ... },
+])
+```
+
+### Bulk Delete
+
+```typescript
+await db
+  .delete(files)
+  .where(inArray(files.id, ['id1', 'id2', 'id3']))
+```
+
+## Transactions
+
+```typescript
+await db.transaction(async (tx) => {
+  // Create file record
+  const [file] = await tx.insert(files).values({
+    r2Key: 'example.jpg',
+    originalFilename: 'example.jpg',
+    fileSize: 1024000,
+    publicUrl: 'https://...',
+    uploadedBy: userId,
+  }).returning()
+
+  // Update user stats
+  await tx.update(users)
+    .set({ uploadCount: sql`${users.uploadCount} + 1` })
+    .where(eq(users.id, userId))
+})
+```
+
+## Migration from Prisma
+
+### Step 1: Install Drizzle
+
+```bash
+npm install drizzle-orm
+npm install -D drizzle-kit
+```
+
+### Step 2: Generate Schema from Prisma
+
+```bash
+npx drizzle-kit introspect
+```
+
+### Step 3: Update Code
+
+Replace Prisma Client with Drizzle:
+
+```typescript
+// Before (Prisma)
+const files = await prisma.file.findMany({
+  where: { uploadedBy: userId },
+})
+
+// After (Drizzle)
+const files = await db
+  .select()
+  .from(filesTable)
+  .where(eq(filesTable.uploadedBy, userId))
+```
+
+## Best Practices
+
+### 1. Use Prepared Statements
+
+```typescript
+import { db } from '@/lib/db'
+import { files } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+
+const getUserFiles = db
+  .select()
+  .from(files)
+  .where(eq(files.uploadedBy, sql.placeholder('userId')))
+  .prepare()
+
+// Execute with parameters
+const userFiles = await getUserFiles.execute({ userId: 'user-123' })
+```
+
+### 2. Add Indexes
+
+```typescript
+export const files = pgTable(
+  'files',
+  {
+    // ... columns
+  },
+  (table) => ({
+    uploadedByIdx: index('files_uploaded_by_idx').on(table.uploadedBy),
+    createdAtIdx: index('files_created_at_idx').on(table.createdAt),
+    r2KeyIdx: index('files_r2_key_idx').on(table.r2Key),
+  })
+)
+```
+
+### 3. Use Transactions
+
+```typescript
+await db.transaction(async (tx) => {
+  // Multiple operations that should succeed or fail together
+})
+```
+
+## Troubleshooting
+
+### "drizzleFns is required"
+
+Make sure you pass all required Drizzle functions:
+
+```typescript
+import { eq, desc, count, sql, and, like, gte, lte, inArray } from 'drizzle-orm'
+
+const repository = new DrizzleFileRepository({
+  db,
+  files,
+  drizzleFns: { eq, desc, count, sql, and, like, gte, lte, inArray },
+})
+```
+
+### Migration Errors
+
+Reset and regenerate migrations:
+
+```bash
+rm -rf drizzle/
+npx drizzle-kit generate
+npx drizzle-kit push
+```
+
+### Type Errors
+
+Regenerate types from schema:
+
+```bash
+npx drizzle-kit generate
+```
+
+## Drizzle vs Prisma
+
+| Feature | Drizzle | Prisma |
+|---------|---------|--------|
+| Bundle Size | ~7KB | ~30KB |
+| Startup Time | Instant | Generation required |
+| Type Safety | Full | Full |
+| SQL Control | High | Limited |
+| Migrations | Manual | Auto-generated |
+| Studio | Yes | Yes |
+
+## Next Steps
+
+<Cards>
+  <Card title="Next.js Routes" href="/docs/nextjs">
+    Create API routes for file uploads
+  </Card>
+  <Card title="Examples" href="/docs/examples">
+    See complete Drizzle examples
+  </Card>
+  <Card title="API Reference" href="/docs/api-reference">
+    Explore all available methods
+  </Card>
+</Cards>

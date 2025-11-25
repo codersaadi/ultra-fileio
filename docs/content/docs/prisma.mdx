@@ -1,0 +1,521 @@
+---
+title: Prisma Setup
+description: Set up Ultra FileIO with Prisma ORM for database operations
+---
+
+# Prisma Setup
+
+Learn how to integrate Ultra FileIO with Prisma ORM for database operations.
+
+## Installation
+
+First, install Prisma:
+
+```bash npm2yarn
+npm install prisma @prisma/client
+npm install -D prisma
+```
+
+Initialize Prisma:
+
+```bash
+npx prisma init
+```
+
+## Database Schema
+
+Add the File and User models to your `schema.prisma`:
+
+```prisma title="prisma/schema.prisma"
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"  // or "mysql", "sqlite", etc.
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  files     File[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model File {
+  id               String   @id @default(uuid())
+  r2Key            String   @unique @map("r2_key")
+  originalFilename String   @map("original_filename") @db.VarChar(512)
+  fileSize         BigInt   @map("file_size")
+  publicUrl        String   @map("public_url")
+  uploadedBy       String   @map("uploaded_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  uploader User @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([r2Key])
+  @@index([uploadedBy])
+  @@index([createdAt])
+  @@map("files")
+}
+```
+
+### Schema Explanation
+
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `id` | `String` | Unique file identifier (UUID) | ✅ Yes |
+| `r2Key` | `String` | Unique R2/S3 object key | ✅ Yes |
+| `originalFilename` | `String` | Original filename from upload | ✅ Yes |
+| `fileSize` | `BigInt` | File size in bytes | ✅ Yes |
+| `publicUrl` | `String` | Public URL for file access | ✅ Yes |
+| `uploadedBy` | `String` | Foreign key to User | ✅ Yes |
+| `createdAt` | `DateTime` | Upload timestamp | ✅ Yes |
+
+<Callout type="info">
+  The schema uses **snake_case** for database columns (`@map`) but **camelCase** in TypeScript. This follows PostgreSQL conventions.
+</Callout>
+
+## Create Migration
+
+Generate and run the migration:
+
+```bash
+npx prisma migrate dev --name add_files
+```
+
+Generate Prisma Client:
+
+```bash
+npx prisma generate
+```
+
+## Prisma Client Setup
+
+Create a Prisma client singleton:
+
+```typescript title="lib/prisma.ts"
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log:
+      process.env.NODE_ENV === 'development'
+        ? ['query', 'error', 'warn']
+        : ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+```
+
+<Callout type="warn">
+  **Important**: This singleton pattern prevents creating multiple Prisma instances in development with Next.js hot-reload.
+</Callout>
+
+## File Service Setup
+
+Create the file service with Prisma repository:
+
+```typescript title="lib/file-service.ts"
+import { FlexibleFileService, getDefaultFileServiceConfig } from 'ultra-fileio';
+import { PrismaFileRepository } from 'ultra-fileio/server';
+import { prisma } from './prisma';
+
+// Create repository
+const repository = new PrismaFileRepository(prisma);
+
+// Create file service
+export const fileService = new FlexibleFileService(
+  repository,
+  getDefaultFileServiceConfig()
+);
+```
+
+### With Lifecycle Hooks
+
+Add hooks for logging, auditing, or custom logic:
+
+```typescript title="lib/file-service.ts"
+import { FlexibleFileService, getDefaultFileServiceConfig } from 'ultra-fileio';
+import { PrismaFileRepository } from 'ultra-fileio/server';
+import { prisma } from './prisma';
+
+const repository = new PrismaFileRepository(prisma, {
+  beforeCreate: async (data) => {
+    console.log(`[Upload] Starting upload for user ${data.uploadedBy}`);
+    console.log(`[Upload] Filename: ${data.originalFilename}`);
+  },
+
+  afterCreate: async (file) => {
+    console.log(`[Upload] File created with ID: ${file.id}`);
+
+    // Send notification
+    // await sendNotification(file.uploadedBy, `File ${file.originalFilename} uploaded`);
+
+    // Update analytics
+    // await analytics.track('file_uploaded', { fileId: file.id });
+  },
+
+  beforeDelete: async ({ id }) => {
+    console.log(`[Delete] Deleting file ${id}`);
+
+    // Check permissions
+    const file = await prisma.file.findUnique({ where: { id } });
+    if (!file) throw new Error('File not found');
+
+    // Log to audit trail
+    // await auditLog.create({
+    //   action: 'FILE_DELETE',
+    //   fileId: id,
+    // });
+  },
+
+  afterDelete: async ({ id }) => {
+    console.log(`[Delete] File ${id} deleted successfully`);
+  },
+
+  beforeUpdate: async ({ id, data }) => {
+    console.log(`[Update] Updating file ${id}`, data);
+  },
+
+  afterUpdate: async (file) => {
+    console.log(`[Update] File ${file.id} updated`);
+  },
+
+  beforeRead: async (params) => {
+    // Log read operations (optional)
+  },
+
+  afterRead: async (result) => {
+    // Process after read (optional)
+  },
+
+  beforeQuery: async (params) => {
+    console.log(`[Query] Running query with params:`, params);
+  },
+
+  afterQuery: async (result) => {
+    console.log(`[Query] Query returned ${Array.isArray(result) ? result.length : 1} results`);
+  },
+});
+
+export const fileService = new FlexibleFileService(
+  repository,
+  getDefaultFileServiceConfig()
+);
+```
+
+## Database Providers
+
+### PostgreSQL (Recommended)
+
+```prisma title="prisma/schema.prisma"
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+```bash title=".env"
+DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
+```
+
+### MySQL
+
+```prisma title="prisma/schema.prisma"
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+```
+
+```bash title=".env"
+DATABASE_URL="mysql://user:password@localhost:3306/mydb"
+```
+
+### SQLite (Development Only)
+
+```prisma title="prisma/schema.prisma"
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+```
+
+```bash title=".env"
+DATABASE_URL="file:./dev.db"
+```
+
+<Callout type="warn">
+  **SQLite is not recommended for production.** Use PostgreSQL or MySQL in production environments.
+</Callout>
+
+## Queries with Prisma
+
+### Get User's Files
+
+```typescript
+const files = await fileService.getFilesByUser('user-123');
+```
+
+Or directly with Prisma:
+
+```typescript
+const files = await prisma.file.findMany({
+  where: { uploadedBy: 'user-123' },
+  orderBy: { createdAt: 'desc' },
+});
+```
+
+### Get File with User Info
+
+```typescript
+const file = await prisma.file.findUnique({
+  where: { id: 'file-123' },
+  include: {
+    uploader: {
+      select: {
+        name: true,
+        email: true,
+      },
+    },
+  },
+});
+```
+
+### Get File Statistics
+
+```typescript
+const stats = await fileService.getFileStats();
+
+console.log(stats.totalFiles);      // Total file count
+console.log(stats.totalSize);       // Total size in bytes
+console.log(stats.recentUploads);   // Uploads in last 7 days
+console.log(stats.averageFileSize); // Average file size
+```
+
+Or with Prisma:
+
+```typescript
+const totalFiles = await prisma.file.count();
+
+const totalSize = await prisma.file.aggregate({
+  _sum: { fileSize: true },
+});
+
+const recentUploads = await prisma.file.count({
+  where: {
+    createdAt: {
+      gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    },
+  },
+});
+```
+
+## Bulk Operations
+
+### Bulk Delete Files
+
+```typescript
+await prisma.file.deleteMany({
+  where: {
+    id: { in: ['file-1', 'file-2', 'file-3'] },
+  },
+});
+```
+
+### Bulk Upload (Transaction)
+
+```typescript
+const fileData = [
+  { r2Key: 'key1', originalFilename: 'file1.jpg', ... },
+  { r2Key: 'key2', originalFilename: 'file2.jpg', ... },
+];
+
+await prisma.$transaction(
+  fileData.map(data => prisma.file.create({ data }))
+);
+```
+
+## Prisma Studio
+
+Prisma Studio provides a GUI for viewing and editing database data:
+
+```bash
+npx prisma studio
+```
+
+This opens at [http://localhost:5555](http://localhost:5555).
+
+## Testing
+
+### Seed Data
+
+Create seed data for testing:
+
+```typescript title="prisma/seed.ts"
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  // Create test user
+  const user = await prisma.user.create({
+    data: {
+      email: 'test@example.com',
+      name: 'Test User',
+    },
+  });
+
+  // Create test files
+  await prisma.file.createMany({
+    data: [
+      {
+        r2Key: 'test/user-1/test1.jpg',
+        originalFilename: 'test1.jpg',
+        fileSize: 1024000,
+        publicUrl: 'https://example.com/test1.jpg',
+        uploadedBy: user.id,
+      },
+      {
+        r2Key: 'test/user-1/test2.jpg',
+        originalFilename: 'test2.jpg',
+        fileSize: 2048000,
+        publicUrl: 'https://example.com/test2.jpg',
+        uploadedBy: user.id,
+      },
+    ],
+  });
+
+  console.log('Seed data created!');
+}
+
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
+```
+
+Add to `package.json`:
+
+```json title="package.json"
+{
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
+```
+
+Run seed:
+
+```bash
+npx prisma db seed
+```
+
+## Best Practices
+
+### 1. Use Transactions for Related Operations
+
+```typescript
+await prisma.$transaction(async (tx) => {
+  // Create file record
+  const file = await tx.file.create({
+    data: { ... },
+  });
+
+  // Update user stats
+  await tx.user.update({
+    where: { id: userId },
+    data: {
+      uploadCount: { increment: 1 },
+    },
+  });
+});
+```
+
+### 2. Add Indexes for Performance
+
+```prisma
+model File {
+  // ...
+
+  @@index([uploadedBy])  // For user queries
+  @@index([createdAt])   // For date sorting
+  @@index([r2Key])       // For R2 key lookups
+}
+```
+
+### 3. Use Select for Efficient Queries
+
+```typescript
+const files = await prisma.file.findMany({
+  select: {
+    id: true,
+    originalFilename: true,
+    publicUrl: true,
+    createdAt: true,
+  },
+});
+```
+
+### 4. Handle Soft Deletes (Optional)
+
+Add a `deletedAt` field for soft deletes:
+
+```prisma
+model File {
+  // ... other fields
+  deletedAt DateTime? @map("deleted_at")
+}
+```
+
+## Troubleshooting
+
+### Migration Fails
+
+Reset database (⚠️ **deletes all data**):
+
+```bash
+npx prisma migrate reset
+```
+
+### Prisma Client Out of Sync
+
+Regenerate Prisma Client:
+
+```bash
+npx prisma generate
+```
+
+### Connection Issues
+
+Test database connection:
+
+```bash
+npx prisma db pull
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Next.js Routes" href="/docs/nextjs">
+    Create API routes for file uploads
+  </Card>
+  <Card title="Examples" href="/docs/examples">
+    See complete Prisma examples
+  </Card>
+  <Card title="API Reference" href="/docs/api-reference">
+    Explore all available methods
+  </Card>
+</Cards>

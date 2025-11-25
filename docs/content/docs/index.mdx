@@ -1,0 +1,151 @@
+---
+title: Introduction
+description: Production-ready file upload library for Next.js with ORM-agnostic architecture
+---
+
+# Ultra FileIO
+
+A production-ready file upload library for Next.js that works seamlessly with **Prisma**, **Drizzle**, **Cloudflare R2**, and **AWS S3**.
+
+## Features
+
+<Cards>
+  <Card title="Next.js App Router" icon="🚀">
+    Built-in route handlers for instant integration
+  </Card>
+  <Card title="ORM Agnostic" icon="🔧">
+    Works with Prisma, Drizzle, or any ORM via repository pattern
+  </Card>
+  <Card title="Cloud Storage" icon="☁️">
+    Cloudflare R2 and AWS S3 compatible
+  </Card>
+  <Card title="Type Safe" icon="🛡️">
+    Full TypeScript + Zod validation
+  </Card>
+  <Card title="Lifecycle Hooks" icon="🪝">
+    Before/after hooks for logging and auditing
+  </Card>
+  <Card title="Image Optimization" icon="🖼️">
+    Automatic compression and thumbnail generation
+  </Card>
+</Cards>
+
+## Quick Start
+
+### Installation
+
+```bash npm2yarn
+npm install ultra-fileio
+```
+
+### Required Dependencies
+
+```bash npm2yarn
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner sharp zod
+```
+
+### Basic Setup
+
+```typescript title="lib/file-service.ts"
+import { FlexibleFileService, getDefaultFileServiceConfig } from 'ultra-fileio';
+import { PrismaFileRepository } from 'ultra-fileio/server';
+import { prisma } from './prisma';
+
+// Create repository
+const repository = new PrismaFileRepository(prisma);
+
+// Create file service
+export const fileService = new FlexibleFileService(
+  repository,
+  getDefaultFileServiceConfig()
+);
+```
+
+### Create Upload Route
+
+```typescript title="app/api/upload/route.ts"
+import { createFileUploadRouteHandler } from 'ultra-fileio/server';
+import { fileService } from '@/lib/file-service';
+
+const { POST } = createFileUploadRouteHandler({
+  fileService,
+  getUserId: async () => {
+    // TODO: Replace with real authentication
+    return 'user-123';
+  },
+});
+
+export { POST };
+```
+
+### Upload from Client
+
+```typescript title="components/FileUploader.tsx"
+'use client';
+
+export function FileUploader() {
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await res.json();
+    console.log('Uploaded:', data.file);
+  }
+
+  return <input type="file" onChange={handleUpload} accept="image/*" />;
+}
+```
+
+## What's Next?
+
+<Cards>
+  <Card title="Configuration" href="/docs/configuration">
+    Learn how to configure R2/S3 storage and file service settings
+  </Card>
+  <Card title="Next.js Integration" href="/docs/nextjs">
+    Set up route handlers and integrate with Next.js App Router
+  </Card>
+  <Card title="Prisma Setup" href="/docs/prisma">
+    Configure Prisma ORM with the file repository
+  </Card>
+  <Card title="Drizzle Setup" href="/docs/drizzle">
+    Configure Drizzle ORM with the file repository
+  </Card>
+</Cards>
+
+## Why Ultra FileIO?
+
+### ORM Agnostic Architecture
+
+Works with **any ORM** through the repository pattern. Built-in adapters for Prisma and Drizzle, or implement your own.
+
+### Production Ready
+
+- ✅ Proper error handling with custom error types
+- ✅ File validation and type checking
+- ✅ Image optimization with Sharp
+- ✅ Presigned URLs for large files
+- ✅ Bulk operations support
+- ✅ Lifecycle hooks for auditing
+
+### Developer Experience
+
+- 🎯 TypeScript-first with full type safety
+- 📦 Simple installation and setup
+- 🔌 Plugin-based architecture
+- 📖 Comprehensive documentation
+- 🧪 Real-world examples included
+
+## Need Help?
+
+- 📚 [API Reference](/docs/api-reference)
+- 💡 [Examples](/docs/examples)
+- 🐛 [GitHub Issues](https://github.com/your-org/ultra-fileio/issues)

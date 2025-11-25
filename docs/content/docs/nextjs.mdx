@@ -1,0 +1,201 @@
+---
+title: Next.js App Router
+description: Integrate Ultra FileIO with Next.js App Router using built-in route handlers
+---
+
+# Next.js App Router Integration
+
+Ultra FileIO provides ready-to-use route handlers for Next.js App Router, making integration effortless.
+
+## Simple Integration (Recommended)
+
+The easiest way to integrate Ultra FileIO is using the `fileUploadsHandler` with a catch-all route. This automatically sets up all necessary endpoints for uploading, presigned URLs, file management, and more.
+
+### 1. Create the Route Handler
+
+Create a file at `app/api/fileuploads/[[...fileuploads]]/route.ts`:
+
+```typescript title="app/api/fileuploads/[[...fileuploads]]/route.ts"
+import { isR2Configured, FlexibleFileService, PrismaFileRepository } from 'ultra-fileio';
+import { fileUploadsHandler } from 'ultra-fileio/server';
+import { prisma } from '@/lib/prisma'; // Your Prisma client
+import { auth } from '@/auth'; // Your auth helper
+
+// 1. Initialize Repository
+const fileRepository = new PrismaFileRepository(prisma);
+
+// 2. Initialize Service
+// Only initialize if storage is configured (optional check)
+let fileService: FlexibleFileService | null = null;
+if (isR2Configured) {
+  fileService = new FlexibleFileService(fileRepository);
+}
+
+// 3. Create Handlers
+// This exports GET, POST, PUT, PATCH, DELETE handlers automatically
+export const { GET, POST, PUT, PATCH, DELETE } = fileUploadsHandler({
+  fileService,
+  fileRepository,
+  getUserId: async () => {
+    const session = await auth();
+    return session?.user?.id ?? null;
+  },
+  basePath: '/api/fileuploads', // Must match your folder structure
+});
+```
+
+### 2. Client Usage
+
+Now you can use the client hooks and components without any extra configuration, as they default to these endpoints.
+
+```typescript title="components/FileUpload.tsx"
+'use client';
+
+import { FileDropzone, usePresignedUpload } from 'ultra-fileio/client';
+
+export default function FileUpload() {
+  // Automatically uses /api/fileuploads endpoints
+  const { upload, uploading, progress, error } = usePresignedUpload(); 
+
+  return (
+    <FileDropzone
+      onFileSelect={(file) => upload(file)}
+      uploading={uploading}
+      progress={progress}
+      error={error}
+    />
+  );
+}
+```
+
+---
+
+## Custom Integration
+
+If you need more granular control or want to set up specific routes manually, you can use the individual route handler creators.
+
+### Route Handlers Overview
+
+Ultra FileIO exports several route handler creators:
+
+| Handler | Purpose | Route Example |
+|---------|---------|---------------|
+| `createFileUploadRouteHandler` | Upload files | `/api/upload` |
+| `createPresignedUrlRouteHandler` | Get presigned URLs | `/api/upload-url` |
+| `createSaveFileRecordRouteHandler` | Save file records | `/api/save-file` |
+| `createFileDeleteRouteHandler` | Delete files | `/api/files/[id]` |
+| `createFileGetRouteHandler` | Get file info | `/api/files/[id]` |
+
+### Upload Route
+
+Create a direct upload endpoint:
+
+```typescript title="app/api/upload/route.ts"
+import { createFileUploadRouteHandler } from 'ultra-fileio/server';
+import { fileService } from '@/lib/file-service';
+import { auth } from '@/auth';
+
+const { POST } = createFileUploadRouteHandler({
+  fileService,
+  getUserId: async (req) => {
+    const session = await auth();
+    return session?.user?.id ?? null;
+  },
+  onError: (error, req) => {
+    console.error('Upload error:', error);
+  },
+});
+
+export { POST };
+```
+
+### Presigned URL Routes
+
+For direct client-to-storage uploads (best for large files):
+
+#### Get Presigned URL
+
+```typescript title="app/api/upload-url/route.ts"
+import { createPresignedUrlRouteHandler } from 'ultra-fileio/server';
+import { fileService } from '@/lib/file-service';
+import { auth } from '@/auth';
+
+const { POST } = createPresignedUrlRouteHandler({
+  fileService,
+  getUserId: async () => {
+    const session = await auth();
+    return session?.user?.id ?? null;
+  },
+});
+
+export { POST };
+```
+
+#### Save File Record
+
+```typescript title="app/api/save-file/route.ts"
+import { createSaveFileRecordRouteHandler } from 'ultra-fileio/server';
+import { fileService } from '@/lib/file-service';
+import { auth } from '@/auth';
+
+const { POST } = createSaveFileRecordRouteHandler({
+  fileService,
+  getUserId: async () => {
+    const session = await auth();
+    return session?.user?.id ?? null;
+  },
+});
+
+export { POST };
+```
+
+### File Management Routes
+
+#### Get File Info
+
+```typescript title="app/api/files/[id]/route.ts"
+import {
+  createFileGetRouteHandler,
+  createFileDeleteRouteHandler
+} from 'ultra-fileio/server';
+import { fileService } from '@/lib/file-service';
+import { auth } from '@/auth';
+
+const { GET } = createFileGetRouteHandler({
+  fileService,
+  getUserId: async () => {
+    const session = await auth();
+    return session?.user?.id ?? null;
+  },
+});
+
+const { DELETE } = createFileDeleteRouteHandler({
+  fileService,
+  getUserId: async () => {
+    const session = await auth();
+    return session?.user?.id ?? null;
+  },
+});
+
+export { GET, DELETE };
+```
+
+## Route Handler Configuration
+
+### RouteHandlerConfig
+
+All route handlers accept this configuration:
+
+```typescript
+interface RouteHandlerConfig {
+  fileService: FlexibleFileService;
+  getUserId: (req: Request) => Promise<string | null> | string | null;
+  onError?: (error: Error, req: Request) => void;
+}
+```
+
+| Option | Type | Description | Required |
+|--------|------|-------------|----------|
+| `fileService` | `FlexibleFileService` | Your configured file service instance | ✅ Yes |
+| `getUserId` | `Function` | Returns authenticated user ID | ✅ Yes |
+| `onError` | `Function` | Custom error handler | No |

@@ -1,0 +1,318 @@
+---
+title: Configuration
+description: Configure Ultra FileIO with R2/S3 storage and customize service settings
+---
+
+# Configuration
+
+Learn how to configure Ultra FileIO for your project.
+
+## Environment Variables
+
+Ultra FileIO uses environment variables for sensitive configuration:
+
+```bash title=".env.local"
+# Cloudflare R2 / AWS S3
+S3_ACCOUNT_ID="cf-account-id"        # Cloudflare account ID
+S3_ACCESS_KEY_ID="access-key"         # R2/S3 access key
+S3_SECRET_ACCESS_KEY="secret-key"     # R2/S3 secret key
+S3_BUCKET_NAME="my-bucket"            # Bucket name
+S3_PUBLIC_URL="https://cdn.example.com" # Optional: Custom domain
+S3_REGION="auto"                      # "auto" for R2, or AWS region
+
+# Database
+DATABASE_URL="postgresql://..."       # Your database URL
+```
+
+<Callout type="warn">
+  **Never commit `.env` files to version control!** Add `.env*` to your `.gitignore`.
+</Callout>
+
+## File Service Configuration
+
+### Basic Configuration
+
+The simplest way to configure the file service:
+
+```typescript title="lib/file-service.ts"
+import { FlexibleFileService, getDefaultFileServiceConfig } from 'ultra-fileio';
+import { PrismaFileRepository } from 'ultra-fileio/server';
+import { prisma } from './prisma';
+
+const repository = new PrismaFileRepository(prisma);
+
+// Uses environment variables automatically
+export const fileService = new FlexibleFileService(
+  repository,
+  getDefaultFileServiceConfig()
+);
+```
+
+### Custom Configuration
+
+For more control, provide a custom config object:
+
+```typescript title="lib/file-service.ts"
+import { FlexibleFileService, FileServiceConfig } from 'ultra-fileio';
+import { PrismaFileRepository } from 'ultra-fileio/server';
+import { prisma } from './prisma';
+
+const config: FileServiceConfig = {
+  r2Config: {
+    accountId: process.env.S3_ACCOUNT_ID!,
+    accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+    bucketName: process.env.S3_BUCKET_NAME!,
+    publicUrl: process.env.S3_PUBLIC_URL,
+    region: process.env.S3_REGION || 'auto',
+  },
+  maxFileSize: 10 * 1024 * 1024, // 10MB
+};
+
+const repository = new PrismaFileRepository(prisma);
+
+export const fileService = new FlexibleFileService(repository, config);
+```
+
+## Storage Configuration
+
+### Cloudflare R2 Setup
+
+```typescript
+const config = {
+  r2Config: {
+    accountId: 'your-cf-account-id',
+    accessKeyId: 'your-r2-access-key',
+    secretAccessKey: 'your-r2-secret',
+    bucketName: 'my-app-files',
+    publicUrl: 'https://files.myapp.com', // Optional custom domain
+    region: 'auto', // Always 'auto' for R2
+  },
+  maxFileSize: 10 * 1024 * 1024,
+};
+```
+
+### AWS S3 Setup
+
+```typescript
+const config = {
+  r2Config: {
+    accountId: '', // Not needed for S3
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    bucketName: 'my-s3-bucket',
+    publicUrl: 'https://my-bucket.s3.amazonaws.com',
+    region: 'us-east-1', // AWS region
+  },
+  maxFileSize: 10 * 1024 * 1024,
+};
+```
+
+<Callout type="info">
+  The library automatically detects whether you're using R2 or S3 based on the `region` value. Use `"auto"` for R2, or an AWS region code for S3.
+</Callout>
+
+## File Size Limits
+
+Configure maximum file sizes:
+
+```typescript
+const config = {
+  // ... r2Config
+  maxFileSize: 50 * 1024 * 1024, // 50MB
+};
+```
+
+Common size presets:
+
+| Size | Bytes | Use Case |
+|------|-------|----------|
+| 5MB | `5 * 1024 * 1024` | Profile images |
+| 10MB | `10 * 1024 * 1024` | General images |
+| 50MB | `50 * 1024 * 1024` | High-res images |
+| 100MB | `100 * 1024 * 1024` | Videos |
+
+## Environment-Specific Config
+
+Use different configs for development, staging, and production:
+
+```typescript title="lib/file-service.ts"
+import { FlexibleFileService, FileServiceConfig } from 'ultra-fileio';
+
+function getConfig(): FileServiceConfig {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  return {
+    r2Config: {
+      accountId: process.env.S3_ACCOUNT_ID!,
+      accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+      bucketName: isProd
+        ? process.env.S3_BUCKET_NAME!
+        : process.env.S3_BUCKET_NAME_DEV!,
+      publicUrl: isProd
+        ? process.env.S3_PUBLIC_URL
+        : process.env.S3_PUBLIC_URL_DEV,
+      region: 'auto',
+    },
+    maxFileSize: isProd
+      ? 10 * 1024 * 1024  // 10MB in production
+      : 50 * 1024 * 1024, // 50MB in development
+  };
+}
+
+export const fileService = new FlexibleFileService(repository, getConfig());
+```
+
+### Environment Files
+
+```bash
+# .env.development
+S3_BUCKET_NAME_DEV="my-app-dev"
+S3_PUBLIC_URL_DEV="https://dev-files.myapp.com"
+
+# .env.production
+S3_BUCKET_NAME="my-app-prod"
+S3_PUBLIC_URL="https://files.myapp.com"
+```
+
+## Repository Configuration
+
+### Prisma with Hooks
+
+```typescript
+import { PrismaFileRepository } from 'ultra-fileio/server';
+
+const repository = new PrismaFileRepository(prisma, {
+  beforeCreate: async (data) => {
+    console.log('Creating file:', data.originalFilename);
+    // Add custom logic
+  },
+  afterCreate: async (file) => {
+    console.log('File created:', file.id);
+    // Send notifications, update analytics, etc.
+  },
+  beforeDelete: async ({ id }) => {
+    console.log('Deleting file:', id);
+    // Check permissions, log audit trail
+  },
+  afterDelete: async ({ id }) => {
+    console.log('File deleted:', id);
+  },
+});
+```
+
+### Drizzle Configuration
+
+```typescript
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { eq, desc, count, sql, and, like, gte, lte, inArray } from 'drizzle-orm';
+import { DrizzleFileRepository } from 'ultra-fileio/server';
+import { files, users } from './db/schema';
+
+const db = drizzle(pool);
+
+const repository = new DrizzleFileRepository({
+  db,
+  files,
+  users,
+  drizzleFns: { eq, desc, count, sql, and, like, gte, lte, inArray },
+  hooks: {
+    beforeCreate: async (data) => {
+      // Custom logic
+    },
+  },
+});
+```
+
+## Image Optimization
+
+Configure image processing settings:
+
+```typescript
+// In your upload options
+const uploadOptions = {
+  userId: 'user-123',
+  category: 'images',
+  isPublic: true,
+  generateThumbnail: true,  // Generate 300x300 thumbnail
+  optimizeImage: true,      // Optimize with Sharp
+};
+
+await fileService.uploadFile(userId, { file, category: 'images' });
+```
+
+The library automatically:
+- Converts images to WebP format
+- Compresses with 85% quality
+- Resizes to max 2048x2048
+- Generates thumbnails (if enabled)
+
+## Advanced Storage Options
+
+Access the R2 storage service directly for advanced use cases:
+
+```typescript
+import { createR2StorageService } from 'ultra-fileio';
+
+const storageService = createR2StorageService({
+  accountId: process.env.S3_ACCOUNT_ID!,
+  accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+  bucketName: process.env.S3_BUCKET_NAME!,
+  publicUrl: process.env.S3_PUBLIC_URL,
+  region: 'auto',
+});
+
+// Direct storage operations
+await storageService.uploadFile(file, options, 'image');
+await storageService.deleteFile(key);
+await storageService.listFiles('prefix/');
+```
+
+## Validation Configuration
+
+File uploads are validated using Zod schemas. The library validates:
+
+- ✅ File size (against `maxFileSize`)
+- ✅ Content type (images only by default)
+- ✅ File metadata completeness
+
+To customize validation, you can access the schemas:
+
+```typescript
+import { FileUploadSchema, ImageUploadSchema } from 'ultra-fileio';
+
+// Use in your own validation logic
+const validatedFile = FileUploadSchema.parse(fileData);
+```
+
+## Configuration Checklist
+
+Before going to production, verify:
+
+- [ ] Environment variables are set in production
+- [ ] R2/S3 bucket is created and accessible
+- [ ] Public access is configured (if needed)
+- [ ] Custom domain is set up (optional)
+- [ ] File size limits are appropriate
+- [ ] Database schema is migrated
+- [ ] Lifecycle hooks are configured
+- [ ] Error handling is in place
+
+## Next Steps
+
+<Cards>
+  <Card title="Next.js Integration" href="/docs/nextjs">
+    Set up API routes for file uploads
+  </Card>
+  <Card title="Prisma Setup" href="/docs/prisma">
+    Configure Prisma ORM
+  </Card>
+  <Card title="Drizzle Setup" href="/docs/drizzle">
+    Configure Drizzle ORM
+  </Card>
+  <Card title="API Reference" href="/docs/api-reference">
+    Explore all available methods
+  </Card>
+</Cards>
