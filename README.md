@@ -123,21 +123,19 @@ export const { GET, POST, PUT, PATCH, DELETE } = fileUploadsHandler({
 
 ### 4. Upload from Client
 
+The `usePresignedUpload` hook handles the complex three-step process:
+
+1.  **Get Presigned URL**: Requests a temporary upload URL from your API.
+2.  **Direct Upload**: Uploads the file directly to storage using the presigned URL.
+3.  **Save Record**: Saves the file metadata to your database.
+
 ```typescript
-'use client'
+import { usePresignedUpload } from 'ultra-fileio/client';
 
-async function handleUpload(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-
-  const res = await fetch('/api/fileuploads', {
-    method: 'POST',
-    body: formData,
-  })
-
-  const data = await res.json()
-  console.log('Uploaded:', data.publicUrl)
-}
+const { upload, uploading, progress, error } = usePresignedUpload({
+  category: 'avatars',
+  onSuccess: (file) => console.log('Uploaded:', file),
+});
 ```
 
 ## 🎯 API Endpoints
