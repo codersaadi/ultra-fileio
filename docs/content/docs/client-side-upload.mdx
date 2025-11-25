@@ -23,7 +23,29 @@ const { upload, uploading, progress, error } = usePresignedUpload({
 
 ## Creating a File Upload Component
 
-You can easily create a custom file upload component by combining `usePresignedUpload` with our pre-built `FileDropzone` UI component.
+You can easily create a custom file upload component by combining our hooks with the pre-built `FileDropzone` UI component.
+
+## Choosing an Upload Strategy
+
+We provide two hooks for handling uploads:
+
+1.  **`useFileUpload` (Direct to API)**:
+    *   **How it works**: Uploads the file to your Next.js API route, which then forwards it to storage (S3/R2).
+    *   **Pros**: Simpler to set up, easier to debug.
+    *   **Cons**: Uses more server resources (bandwidth/CPU), limited by Vercel/serverless function timeouts (usually 10-60s) and body size limits (4.5MB on Vercel).
+    *   **Best for**: Small files (avatars, documents < 4MB), internal tools, low traffic.
+
+2.  **`usePresignedUpload` (Direct to Storage)**:
+    *   **How it works**: Gets a temporary URL from your API, then uploads the file *directly* from the browser to S3/R2.
+    *   **Pros**: Highly scalable, no server load during upload, supports large files (GBs), faster for users.
+    *   **Cons**: Slightly more complex flow (3 steps).
+    *   **Best for**: **Production apps**, large files (videos, high-res images), high traffic.
+
+> [!TIP]
+> The `FileUploadButton` example below uses `useFileUpload` for simplicity. For production apps handling large files, we **strongly recommend** using `usePresignedUpload` instead. You can swap the hook in the component code easily.
+
+## Creating a File Upload Component
+
 
 ### Dependencies
 

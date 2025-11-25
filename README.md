@@ -263,4 +263,4 @@ MIT License - see [LICENSE](./LICENSE) file for details.
 
 ---
 
-Made with ❤️ for the Next.js community
+Made with ❤️ for the JS,TS community
