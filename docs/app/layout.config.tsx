@@ -11,11 +11,11 @@ export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
       <>
-
-        Ultra FileIO
+        Ultra FileIO <span className="text-xs font-normal text-muted-foreground">by Saad</span>
       </>
     ),
   },
+  githubUrl: 'https://github.com/codersaadi/ultra-fileio',
   // see https://fumadocs.dev/docs/ui/navigation/links
   links: [],
 };
