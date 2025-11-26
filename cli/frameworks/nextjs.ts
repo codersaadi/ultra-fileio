@@ -1,0 +1,178 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+import type { FrameworkSetup, SetupOptions } from "../types.js";
+import {
+	routeHandlerTemplate,
+	prismaClientTemplate,
+	getUserTemplate,
+	prismaSchema,
+	envTemplate,
+	fileUploadButtonTemplate,
+	fileUploadTemplate,
+} from "../templates/nextjs.js";
+import { writeFiles, updatePrismaSchema, fileExists } from "../utils/files.js";
+import { getInstallCommand, getRunCommand } from "../utils/package-manager.js";
+
+const execAsync = promisify(exec);
+
+export const nextjsSetup: FrameworkSetup = {
+	name: "Next.js App Router",
+
+	async detect(): Promise<boolean> {
+		const cwd = process.cwd();
+		// Check for Next.js
+		const packageJsonPath = join(cwd, "package.json");
+		if (!existsSync(packageJsonPath)) return false;
+
+		try {
+			const packageJson = await import(packageJsonPath, {
+				with: { type: "json" },
+			});
+			const deps = {
+				...packageJson.default.dependencies,
+				...packageJson.default.devDependencies,
+			};
+
+			// Check for Next.js and App Router structure
+			return (
+				deps.next !== undefined && existsSync(join(cwd, "app"))
+			);
+		} catch {
+			return false;
+		}
+	},
+
+	async setup(options: SetupOptions): Promise<void> {
+		const { packageManager, cwd } = options;
+
+		console.log("🚀 Setting up Ultra FileIO for Next.js App Router...\n");
+
+		// 1. Install dependencies
+		console.log("📦 Installing dependencies...");
+		const dependencies = [
+			"ultra-fileio",
+			"@aws-sdk/client-s3",
+			"@aws-sdk/s3-request-presigner",
+			"sharp",
+			"zod",
+			"@prisma/client",
+			"clsx",
+			"tailwind-merge",
+			"lucide-react",
+		];
+		const devDependencies = ["prisma"];
+
+		try {
+			const installCmd = getInstallCommand(packageManager, dependencies);
+			console.log(`   Running: ${installCmd}`);
+			await execAsync(installCmd, { cwd });
+
+			const devInstallCmd = getInstallCommand(
+				packageManager,
+				devDependencies,
+			);
+			console.log(`   Running: ${devInstallCmd}`);
+			await execAsync(devInstallCmd, { cwd });
+			console.log("✅ Dependencies installed\n");
+		} catch (error) {
+			console.error("❌ Failed to install dependencies:", error);
+			throw error;
+		}
+
+		// 2. Create files
+		console.log("\n📝 Creating files...");
+		const files = [
+			routeHandlerTemplate,
+			prismaClientTemplate,
+			getUserTemplate,
+			fileUploadButtonTemplate,
+			fileUploadTemplate,
+		];
+
+		try {
+			await writeFiles(cwd, files);
+			console.log("   ✅ Created app/api/fileuploads/[[...fileuploads]]/route.ts");
+			console.log("   ✅ Created lib/prisma.ts");
+			console.log("   ✅ Created lib/get-user.ts");
+			console.log("   ✅ Created components/FileUploadButton.tsx");
+			console.log("   ✅ Created components/FileUpload.tsx");
+		} catch (error) {
+			console.error("❌ Failed to create files:", error);
+			throw error;
+		}
+
+		// 3. Update or create Prisma schema
+		console.log("\n🗄️  Setting up Prisma schema...");
+		try {
+			await updatePrismaSchema(cwd, prismaSchema);
+			console.log("   ✅ Updated prisma/schema.prisma");
+		} catch (error) {
+			console.error("❌ Failed to update Prisma schema:", error);
+			throw error;
+		}
+
+		// 4. Create .env.local if it doesn't exist
+		const envPath = join(cwd, ".env.local");
+		const envExists = await fileExists(envPath);
+
+		if (!envExists) {
+			console.log("\n🔐 Creating .env.local...");
+			try {
+				await writeFiles(cwd, [
+					{ path: ".env.local", content: envTemplate },
+				]);
+				console.log("   ✅ Created .env.local");
+				console.log(
+					"   ⚠️  Please update .env.local with your R2/S3 credentials",
+				);
+			} catch (error) {
+				console.error("❌ Failed to create .env.local:", error);
+			}
+		}
+
+		// 5. Run Prisma commands
+		console.log("\n🔨 Running Prisma migrations...");
+		try {
+			const migrateCmd = getRunCommand(
+				packageManager,
+				"prisma migrate dev --name init",
+			);
+			console.log(`   Running: ${migrateCmd}`);
+			await execAsync(migrateCmd, { cwd });
+
+			const generateCmd = getRunCommand(packageManager, "prisma generate");
+			console.log(`   Running: ${generateCmd}`);
+			await execAsync(generateCmd, { cwd });
+
+			console.log("   ✅ Prisma setup complete");
+		} catch (error) {
+			console.log(
+				"   ⚠️  Prisma migration skipped (you may need to run it manually)",
+			);
+		}
+
+		// Success message
+		console.log("\n✨ Setup complete! \n");
+		console.log("Next steps:");
+		console.log("1. Update .env.local with your R2/S3 credentials");
+		console.log("2. Update lib/get-user.ts with your auth implementation");
+		console.log("3. Import FileUpload component in your pages:");
+		console.log("   import FileUpload from '@/components/FileUpload'");
+		console.log("4. Start your dev server and test the upload");
+		console.log("\nFiles created:");
+		console.log("  📁 app/api/fileuploads/[[...fileuploads]]/route.ts - API handler");
+		console.log("  📁 lib/prisma.ts - Prisma client");
+		console.log("  📁 lib/get-user.ts - Auth helper");
+		console.log("  📁 components/FileUploadButton.tsx - Upload UI components");
+		console.log("  📁 components/FileUpload.tsx - Ready-to-use upload component");
+		console.log("\nAPI endpoints created:");
+		console.log("  POST   /api/fileuploads - Upload a file");
+		console.log("  GET    /api/fileuploads - List user files");
+		console.log("  GET    /api/fileuploads/{id} - Get file details");
+		console.log("  DELETE /api/fileuploads/{id} - Delete a file");
+		console.log("  POST   /api/fileuploads/presigned - Get presigned URL");
+		console.log("  POST   /api/fileuploads/complete - Complete presigned upload\n");
+	},
+};

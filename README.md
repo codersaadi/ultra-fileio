@@ -9,6 +9,7 @@ A complete file upload solution for Next.js that works seamlessly with **Prisma*
 
 ## ✨ Features
 
+- 🎯 **CLI Tool** - Automatic setup with `npx ultra-fileio init` (supports Next.js, extensible for more)
 - 🚀 **Next.js App Router** - Built-in route handlers for instant integration
 - 🔧 **ORM Agnostic** - Works with Prisma, Drizzle, or any ORM via repository pattern
 - ☁️ **Cloud Storage** - Cloudflare R2 and AWS S3 compatible
@@ -35,6 +36,25 @@ npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner sharp zod
 ```
 
 ## 🚀 Quick Start
+
+### Automatic Setup (Recommended)
+
+Use the CLI to automatically set up Ultra FileIO in your Next.js App Router project:
+
+```bash
+npx ultra-fileio init
+```
+
+This will:
+- ✅ Auto-detect your framework and package manager
+- ✅ Install all required dependencies
+- ✅ Create API route handlers
+- ✅ Set up Prisma schema and migrations
+- ✅ Generate configuration files
+
+**Manual Setup**
+
+If you prefer manual setup or need more control, follow these steps:
 
 ### 1. Environment Setup
 
@@ -175,6 +195,16 @@ Check out the [complete Next.js example](./examples/nextjs-approuter) with:
 
 ```
 ultra-fileio/
+├── cli/                      # CLI tool
+│   ├── index.ts              # CLI entry point
+│   ├── types.ts              # TypeScript types
+│   ├── frameworks/           # Framework-specific setup
+│   │   └── nextjs.ts
+│   ├── templates/            # File templates
+│   │   └── nextjs.ts
+│   └── utils/                # Utilities
+│       ├── package-manager.ts
+│       └── files.ts
 ├── src/
 │   ├── index.ts              # Main exports
 │   ├── file.service.ts       # File service (ORM agnostic)

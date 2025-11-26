@@ -44,6 +44,7 @@ export default function Home() {
 		}
 	};
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
 	useEffect(() => {
 		initializeApp().then(() => {
 			fetchFiles();
@@ -62,7 +63,7 @@ export default function Home() {
 		return (
 			<div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
 				<div className="text-center">
-					<div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+					<div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent" />
 					<p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
 				</div>
 			</div>
