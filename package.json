@@ -1,6 +1,6 @@
 {
 	"name": "ultra-fileio",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"description": "A powerful and flexible file upload library for Next.js with support for S3, Prisma, and Drizzle.",
 	"type": "module",
 	"main": "./dist/index.js",
