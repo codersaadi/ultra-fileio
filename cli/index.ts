@@ -2,7 +2,7 @@
 
 import { parseArgs } from "node:util";
 import { nextjsSetup } from "./frameworks/nextjs.js";
-import { detectPackageManager } from "./utils/package-manager.js";
+import { detectPackageManager, validatePackageJson } from "./utils/package-manager.js";
 import type { FrameworkSetup } from "./types.js";
 
 const frameworks: FrameworkSetup[] = [
@@ -50,6 +50,15 @@ async function handleInit(frameworkName?: string) {
 	console.log("🎯 Ultra FileIO CLI\n");
 
 	const cwd = process.cwd();
+
+	// Validate package.json first
+	const validation = validatePackageJson(cwd);
+	if (!validation.valid) {
+		console.error(`❌ ${validation.error}\n`);
+		console.log("Current directory:", cwd);
+		process.exit(1);
+	}
+
 	let selectedFramework: FrameworkSetup | undefined;
 
 	// If framework specified, use it

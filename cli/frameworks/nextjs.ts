@@ -77,8 +77,12 @@ export const nextjsSetup: FrameworkSetup = {
 			await execAsync(devInstallCmd, { cwd });
 			console.log("✅ Dependencies installed\n");
 		} catch (error) {
-			console.error("❌ Failed to install dependencies:", error);
-			throw error;
+			console.error("\n❌ Failed to install dependencies");
+			console.error("   Error:", error instanceof Error ? error.message : error);
+			console.log("\n💡 You can install dependencies manually:");
+			console.log(`   ${getInstallCommand(packageManager, dependencies)}`);
+			console.log(`   ${getInstallCommand(packageManager, devDependencies)}`);
+			console.log("\n⚠️  Continuing with file creation...\n");
 		}
 
 		// 2. Create files
@@ -157,10 +161,11 @@ export const nextjsSetup: FrameworkSetup = {
 		console.log("\n✨ Setup complete! \n");
 		console.log("Next steps:");
 		console.log("1. Update .env.local with your R2/S3 credentials");
-		console.log("2. Update lib/get-user.ts with your auth implementation");
-		console.log("3. Import FileUpload component in your pages:");
+		console.log("2. Run 'npx prisma generate' to generate Prisma client types");
+		console.log("3. Update lib/get-user.ts with your auth implementation");
+		console.log("4. Import FileUpload component in your pages:");
 		console.log("   import FileUpload from '@/components/FileUpload'");
-		console.log("4. Start your dev server and test the upload");
+		console.log("5. Start your dev server and test the upload");
 		console.log("\nFiles created:");
 		console.log("  📁 app/api/fileuploads/[[...fileuploads]]/route.ts - API handler");
 		console.log("  📁 lib/prisma.ts - Prisma client");

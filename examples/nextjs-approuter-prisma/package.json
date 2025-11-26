@@ -22,15 +22,16 @@
 		"seed": "tsx prisma/seed.ts"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "^3.939.0",
-		"@aws-sdk/s3-request-presigner": "^3.939.0",
-		"@dnd-kit/core": "^6.3.1",
-		"@prisma/client": "^5.22.0",
+		"@aws-sdk/client-s3": "^3.940.0",
+		"@aws-sdk/s3-request-presigner": "^3.940.0",
+		"@prisma/client": "^7.0.1",
 		"clsx": "^2.1.1",
 		"lucide-react": "^0.554.0",
 		"next": "16.0.4",
+		"prisma": "^7.0.1",
 		"react": "19.2.0",
 		"react-dom": "19.2.0",
+		"sharp": "^0.34.5",
 		"tailwind-merge": "^3.4.0",
 		"ultra-fileio": "^0.1.0",
 		"zod": "^3.23.8"
@@ -42,7 +43,6 @@
 		"@types/react-dom": "^19",
 		"eslint": "^9",
 		"eslint-config-next": "16.0.4",
-		"prisma": "^5.22.0",
 		"tailwindcss": "^4",
 		"tsx": "^4.7.0",
 		"typescript": "^5"

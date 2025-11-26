@@ -6,11 +6,17 @@ import {
 	isR2Configured,
 } from "ultra-fileio";
 import { fileUploadsHandler } from "ultra-fileio/server";
+
 // Create repository
 const fileRepository = new PrismaFileRepository(prisma);
+
+// Create file service (only if R2 is configured)
 let fileService: FlexibleFileService | null = null;
-if (isR2Configured) fileService = new FlexibleFileService(fileRepository);
-// handlers
+if (isR2Configured) {
+	fileService = new FlexibleFileService(fileRepository);
+}
+
+// Export all HTTP method handlers
 export const { GET, POST, PUT, PATCH, DELETE } = fileUploadsHandler({
 	fileService,
 	fileRepository,

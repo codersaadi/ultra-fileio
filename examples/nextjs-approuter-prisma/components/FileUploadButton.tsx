@@ -189,8 +189,6 @@ export function FileDropzone({
 			});
 
 			if (!isAccepted) {
-				// We rely on the parent to handle errors if needed, but for now we just return
-				// Ideally we should have an onError prop on FileDropzone too
 				return;
 			}
 		}

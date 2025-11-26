@@ -6,12 +6,15 @@ import { FileDropzone } from "./FileUploadButton";
 interface FileUploadProps {
 	onUploadSuccess: () => void;
 }
+
 export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
 	const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 	const { upload, uploading, progress, error } = usePresignedUpload();
+
 	const handleFileSelect = async (file: File) => {
 		await upload(file);
 	};
+
 	return (
 		<FileDropzone
 			onFileSelect={handleFileSelect}
