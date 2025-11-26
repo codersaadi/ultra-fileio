@@ -73,6 +73,17 @@ export async function getUserId(req: Request): Promise<string> {
 };
 
 export const prismaSchema = `
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  files File[]
+
+  @@map("users")
+}
+
 model File {
   id               String   @id @default(cuid())
   r2Key            String   @unique @map("r2_key")
@@ -81,6 +92,8 @@ model File {
   publicUrl        String   @map("public_url")
   uploadedBy       String   @map("uploaded_by")
   createdAt        DateTime @default(now()) @map("created_at")
+
+  uploader User @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
 
   @@index([r2Key])
   @@index([uploadedBy])

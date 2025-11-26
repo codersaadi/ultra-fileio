@@ -76,6 +76,17 @@ DATABASE_URL="postgresql://..."
 <summary>Prisma Schema</summary>
 
 ```prisma
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  files File[]
+
+  @@map("users")
+}
+
 model File {
   id               String   @id @default(cuid())
   r2Key            String   @unique @map("r2_key")

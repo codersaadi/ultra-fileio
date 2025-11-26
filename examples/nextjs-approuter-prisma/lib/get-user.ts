@@ -1,16 +1,16 @@
 // TODO: Replace this with your actual auth implementation
 // Examples:
-// - NextAuth: const session = await auth(); return session?.user?.id ?? null;
-// - Clerk: const { userId } = await auth(); return userId;
-// - Supabase: const { data: { user } } = await supabase.auth.getUser(); return user?.id ?? null;
+// - NextAuth: const session = await auth(); return session?.user?.id ?? "anonymous";
+// - Clerk: const { userId } = await auth(); return userId ?? "anonymous";
+// - Supabase: const { data: { user } } = await supabase.auth.getUser(); return user?.id ?? "anonymous";
 
-export async function getUserId(): Promise<string | null> {
+/**
+ * Get the current user ID from the request.
+ * Returns "anonymous" if no user is authenticated.
+ */
+export async function getUserId(req: Request): Promise<string> {
 	// For development/testing only - returns a demo user
-	return "demo-user";
-}
-
-// Alternative: if you need access to the request object
-export async function getUserIdFromRequest(req: Request): Promise<string | null> {
-	// Example: get from header during development
-	return req.headers.get("x-user-id") || "demo-user";
+	// You can also check the request headers, cookies, etc.
+	const userId = req.headers.get("x-user-id");
+	return userId || "demo-user";
 }
