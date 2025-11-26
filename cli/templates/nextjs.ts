@@ -637,3 +637,136 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
 }
 `,
 };
+
+// ============================================================================
+// DRIZZLE TEMPLATES
+// ============================================================================
+
+export const drizzleRouteHandlerTemplate = (
+	dbPath: string,
+	filesSchemaPath: string,
+	usersSchemaPath?: string,
+): FileTemplate => {
+	const usersImport = usersSchemaPath
+		? `import { users } from "${usersSchemaPath}";\nimport { eq, desc, count, sql, and, like, gte, lte, inArray } from "drizzle-orm";`
+		: `import { eq, desc, count, sql, and, like, gte, lte, inArray } from "drizzle-orm";`;
+
+	const usersConfig = usersSchemaPath ? "users," : "users: undefined,";
+
+	return {
+		path: "app/api/fileuploads/[[...fileuploads]]/route.ts",
+		content: `import { getUserId } from "@/lib/get-user";
+import { db } from "${dbPath}";
+import { files } from "${filesSchemaPath}";
+${usersImport}
+import {
+	FlexibleFileService,
+	DrizzleFileRepository,
+	isR2Configured,
+} from "ultra-fileio";
+import { fileUploadsHandler } from "ultra-fileio/server";
+
+// Create Drizzle repository
+const fileRepository = new DrizzleFileRepository({
+	db,
+	files,
+	drizzleFns: { eq, desc, count, sql, and, like, gte, lte, inArray },
+	${usersConfig}
+});
+
+// Create file service (only if R2 is configured)
+let fileService: FlexibleFileService | null = null;
+if (isR2Configured) {
+	fileService = new FlexibleFileService(fileRepository);
+}
+
+// Export all HTTP method handlers
+export const { GET, POST, PUT, PATCH, DELETE } = fileUploadsHandler({
+	fileService,
+	fileRepository,
+	getUserId,
+	basePath: "/api/fileuploads",
+});
+`,
+	};
+};
+
+export const drizzleSchemaTemplate: FileTemplate = {
+	path: "lib/schema.ts",
+	content: `import { pgTable, text, timestamp, varchar, integer, index } from "drizzle-orm/pg-core";
+
+/**
+ * Files table schema for ultra-fileio
+ *
+ * This schema is designed to work with ultra-fileio's DrizzleFileRepository.
+ * You can customize it based on your needs, but make sure to keep the required fields.
+ */
+export const files = pgTable("files", {
+	id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+	r2Key: text("r2_key").notNull().unique(),
+	originalFilename: varchar("original_filename", { length: 512 }).notNull(),
+	fileSize: integer("file_size").notNull(),
+	publicUrl: text("public_url").notNull(),
+	uploadedBy: text("uploaded_by").notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+	r2KeyIdx: index("files_r2_key_idx").on(table.r2Key),
+	uploadedByIdx: index("files_uploaded_by_idx").on(table.uploadedBy),
+	createdAtIdx: index("files_created_at_idx").on(table.createdAt),
+}));
+
+// Example users table (optional)
+// Uncomment this if you want to track uploaders with a users table
+/*
+export const users = pgTable("users", {
+	id: text("id").primaryKey(),
+	name: text("name"),
+	email: text("email").notNull().unique(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+*/
+`,
+};
+
+export const drizzleDbTemplate: FileTemplate = {
+	path: "lib/db.ts",
+	content: `import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema";
+
+/**
+ * Drizzle database client
+ *
+ * This uses postgres-js as the driver. You can use other drivers like:
+ * - node-postgres (pg)
+ * - neon
+ * - vercel-postgres
+ *
+ * See: https://orm.drizzle.team/docs/get-started-postgresql
+ */
+
+const connectionString = process.env.DATABASE_URL!;
+
+if (!connectionString) {
+	throw new Error("DATABASE_URL environment variable is required");
+}
+
+// Disable prefetch for serverless environments
+const client = postgres(connectionString, { prepare: false });
+
+export const db = drizzle(client, { schema });
+`,
+};
+
+export const drizzleEnvTemplate = `
+# Cloudflare R2 / S3 Configuration
+S3_ACCOUNT_ID="your-account-id"
+S3_ACCESS_KEY_ID="your-access-key"
+S3_SECRET_ACCESS_KEY="your-secret-key"
+S3_BUCKET_NAME="your-bucket-name"
+S3_PUBLIC_URL="https://your-bucket.r2.dev"
+S3_REGION="auto"
+
+# Database (PostgreSQL connection string)
+DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
+`;

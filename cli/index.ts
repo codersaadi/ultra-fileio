@@ -3,7 +3,8 @@
 import { parseArgs } from "node:util";
 import { nextjsSetup } from "./frameworks/nextjs.js";
 import { detectPackageManager, validatePackageJson } from "./utils/package-manager.js";
-import type { FrameworkSetup } from "./types.js";
+import { select, input as promptInput } from "./utils/prompts.js";
+import type { FrameworkSetup, DrizzleConfig } from "./types.js";
 
 const frameworks: FrameworkSetup[] = [
 	nextjsSetup,
@@ -100,12 +101,67 @@ async function handleInit(frameworkName?: string) {
 	const packageManager = await detectPackageManager(cwd);
 	console.log(`📦 Package manager: ${packageManager}\n`);
 
+	// Prompt for ORM selection
+	const orm = await select(
+		"Which ORM do you want to use?",
+		[
+			{
+				value: "prisma" as const,
+				label: "Prisma",
+				description: "Type-safe ORM with migrations and studio",
+			},
+			{
+				value: "drizzle" as const,
+				label: "Drizzle",
+				description: "Lightweight TypeScript ORM",
+			},
+		],
+		"prisma",
+	);
+
+	console.log(`✅ Selected ORM: ${orm}\n`);
+
+	// If Drizzle, prompt for configuration
+	let drizzleConfig: DrizzleConfig | undefined;
+	if (orm === "drizzle") {
+		console.log("🔧 Drizzle Configuration\n");
+
+		const dbPath = await promptInput("Where is your Drizzle db instance exported?", {
+			defaultValue: "@/lib/db",
+			placeholder: "@/lib/db",
+		});
+
+		const filesSchemaPath = await promptInput(
+			"Where is your files schema exported?",
+			{
+				defaultValue: "@/lib/schema",
+				placeholder: "@/lib/schema",
+			},
+		);
+
+		const usersSchemaPath = await promptInput(
+			"Where is your users schema exported? (optional, press Enter to skip)",
+			{
+				placeholder: "@/lib/schema",
+			},
+		);
+
+		drizzleConfig = {
+			dbPath,
+			filesSchemaPath,
+			usersSchemaPath: usersSchemaPath || undefined,
+		};
+
+		console.log("");
+	}
+
 	// Run setup
 	try {
 		await selectedFramework.setup({
 			packageManager,
 			cwd,
-			orm: "prisma", // Default to Prisma for now
+			orm,
+			drizzleConfig,
 		});
 	} catch (error) {
 		console.error("\n❌ Setup failed:", error);
